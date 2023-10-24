@@ -4,11 +4,7 @@ This is a simple Python Interface to use the [Xiron Simulator](https://github.co
 # Installation
 1. Use pip to install the module. To install it directly from github, use
 ```
-pip install git+https://github.com/username/repo.git
-```
-or
-```
-pip install git+https://github.com/yourusername/yourrepo.git
+pip install git+https://github.com/SuhrudhSarathy/xironpy.git
 ```
 
 # Usage
