@@ -1,6 +1,10 @@
 # XironPy
 This is a simple Python Interface to use the [Xiron Simulator](https://github.com/SuhrudhSarathy/xiron/tree/main)
 
+# Dependencies
+1. Make sure you have python installed on your system. Python can be installed from [here](https://www.python.org/downloads/)
+2. Install pip to manage dependencies. Instructions are available [here](https://pip.pypa.io/en/stable/installation/)
+
 # Installation
 1. Use pip to install the module. To install it directly from github:
 ```
