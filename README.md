@@ -2,9 +2,17 @@
 This is a simple Python Interface to use the [Xiron Simulator](https://github.com/SuhrudhSarathy/xiron/tree/main)
 
 # Installation
-1. Use pip to install the module. To install it directly from github, use
+1. Use pip to install the module. To install it directly from github:
 ```
 pip install git+https://github.com/SuhrudhSarathy/xironpy.git
+```
+2. To install from source, clone the repository and use pip to install
+```
+git clone https://github.com/SuhrudhSarathy/xironpy.git
+```
+```
+cd xironpy
+pip install -e .
 ```
 
 # Usage
