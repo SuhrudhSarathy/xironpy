@@ -6,7 +6,8 @@ import casadi as cs
 Notes
 1. Having a atan2 function to guide inplace rotation is generally not working. 
     Keeping A to zero helps in providing a solution.
-2. In some cases where the goal pose is behind the robot, the robot is unable to go towards the goal
+2. In some cases where the goal pose is behind the robot, the robot is unable to go towards the goal.
+3. There are orientations where the robot gets stuck. Happens when the angle between the goal pose and the robots angle is wierdly placed
 """
 
 
@@ -28,8 +29,9 @@ class ModelPredictiveController(Controller):
 
         # Speed Limits in the Kwargs
         self.max_linear_speed = kwargs.get("max_linear_speed", 0.75)
-        self.max_angular_speed = kwargs.get("max_angular_speed", 1.0)
+        self.max_angular_speed = kwargs.get("max_angular_speed", 0.35)
         self.reversing_allowed = kwargs.get("reversing_allowed", True)
+        self.rotate_to_heading = kwargs.get("rotate_to_heading", False)
 
         # Cost Matrices
         self.Q = np.diag([10.0, 10.0, 1.0])
@@ -123,6 +125,30 @@ class ModelPredictiveController(Controller):
 
         return cs.vertcat(x_next, y_next, theta_next)
 
+    def normalise_angle(self, theta):
+        if theta > np.pi:
+            return theta - 2 * np.pi
+        elif theta < -np.pi:
+            return theta + 2 * np.pi
+        else:
+            return theta
+
+    # rotate to heading
+    def should_rotate_to_heading(self, current_pose):
+        """This decides if we have to rotate in place first"""
+        first_pose_in_plan = self.plan[0]
+        alpha_val = current_pose[2][0] - cs.atan(
+            first_pose_in_plan[1]
+            - current_pose[1][0]
+            / (first_pose_in_plan[0] - current_pose[0][0] + 0.00001)
+        )
+
+        if abs(alpha_val) > 0.4:
+            # normalise alpha val
+            return True, 0.5
+
+        return False, 0.0
+
     # Controller interface functions
     def set_plan(self, plan: np.ndarray) -> None:
         self.plan = plan
@@ -133,6 +159,11 @@ class ModelPredictiveController(Controller):
         # Raise exception if plan is not set
         if self.plan is None:
             raise Exception("Set Plan first")
+
+        if self.rotate_to_heading:
+            should_rotate, angular_vel = self.should_rotate_to_heading(current_state)
+            if should_rotate:
+                return np.array([0.0, angular_vel]).reshape(-1, 1)
 
         # Set parameters and values for the problem
         self.optimiser.set_value(self.X_track, self.plan)
