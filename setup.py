@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
@@ -16,7 +16,7 @@ setup(
     ],
     zip_safe=False,
     include_package_data=True,
-    packages=["xiron_py"],
+    packages=["xiron_py", "xiron_py/controller"],
     python_requires=">=3.9",
     install_requires=["zmq"],
 )
