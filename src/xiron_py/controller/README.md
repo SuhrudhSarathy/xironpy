@@ -3,7 +3,7 @@ This contains the base implementation of the Controller class. There are few exa
 
 | Controller        | Stable | Differential | Omnidrive | Ackermann | 
 | :---------------- | :------: | :----: | :-------: | :--------: |
-| PID Controller    |   [x]  | [x] | [] | [] |
+| PID Controller    |   :white_check_mark:  | :white_check_mark: | [] | [] |
 | MPC               |   []   | [] | [] | [] |
 | MPPI              |  []   | []| [] | [] |
 
