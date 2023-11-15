@@ -1,5 +1,9 @@
+# This is experimental and subject to change
+
+import numpy as np
 import torch
 import torch.nn as nn
+from xiron_py.controller import Controller
 
 
 class Critic(nn.Module):
@@ -183,3 +187,119 @@ class MPPI(nn.Module):
         goal_pose: torch.Tensor,
     ) -> torch.Tensor:
         return self.forward(current_state, current_control, goal_pose)
+
+
+class DiffDriveModel(DynamicsModel):
+    def __init__(self, dt: float = 0.1, device="cpu") -> None:
+        super().__init__(device)
+        self.dt = dt
+
+    def forward(self, state, control):
+        theta = state[:, 2] + control[:, 1] * self.dt
+        x = state[:, 0] + control[:, 0] * torch.cos(theta) * self.dt
+        y = state[:, 1] + control[:, 0] * torch.sin(theta) * self.dt
+
+        return torch.vstack([x, y, theta]).T
+
+
+class PathLengthCritic(Critic):
+    def __init__(self, device: str = "cpu") -> None:
+        super().__init__(device)
+
+        self.device = torch.device(device)
+
+    def forward(self, trajectory, goal_pose):
+        cost_vec = torch.zeros((trajectory.shape[0], 1))
+        cost_vec += cost_vec
+
+        # loop 20
+        for t in range(1, trajectory.shape[2]):
+            cost_vec += (
+                (
+                    (trajectory[:, 0, t] - trajectory[:, 0, t - 1]) ** 2
+                    + (trajectory[:, 1, t] - trajectory[:, 1, t - 1]) ** 2
+                )
+                .reshape(-1, 1)
+                .to(self.device)
+            )
+
+        return cost_vec / torch.max(cost_vec)
+
+
+class GoalCritic(Critic):
+    def __init__(self, device: str = "cpu") -> None:
+        super().__init__(device, weight=1.0)
+
+    def forward(self, trajectory: torch.Tensor, goal_pose: torch.Tensor):
+        cost_vec = torch.zeros((trajectory.shape[0]))
+        diff_vector = trajectory - goal_pose
+
+        # loop 20
+        for t in range(0, trajectory.shape[2]):
+            x_items = diff_vector[:, 0, t]
+            y_items = diff_vector[:, 1, t]
+
+            dist = x_items**2 + y_items**2
+            cost_vec += dist
+
+        cost_vec = torch.sqrt(cost_vec)
+        cost_vec /= torch.max(cost_vec)
+        return cost_vec.reshape(-1, 1)
+
+
+class MPPIController(Controller):
+    def __init__(
+        self,
+        control_dims: int = 2,
+        state_dims: int = 3,
+        timesteps: int = 20,
+        dt: float = 0.1,
+        temperature: float = 0.1,
+        no_of_samples: int = 1000,
+        device: str = "mps",
+        max_control: list[float] = None,
+        min_control: list[float] = None,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.mppi_controller = MPPI(
+            control_dims,
+            state_dims,
+            timesteps,
+            dt,
+            temperature,
+            no_of_samples,
+            device,
+            max_control,
+            min_control,
+        )
+        dynamics_model = DiffDriveModel(device="cpu")
+        self.mppi_controller.register_dynamics_model(dynamics_model)
+        self.mppi_controller.register_critic(PathLengthCritic())
+        self.mppi_controller.register_critic(GoalCritic())
+
+        self.plan = None
+        self.goal_pose = None
+
+    def set_plan(self, plan: np.ndarray) -> None:
+        self.plan = plan
+        self.goal_pose = (
+            torch.from_numpy(self.plan[-1])
+            .to(self.mppi_controller.device)
+            .reshape(-1, 1)
+        )
+
+    def compute_contol(
+        self, current_state: np.ndarray, last_contol: np.ndarray
+    ) -> np.ndarray:
+        if self.goal_pose is not None:
+            out = self.mppi_controller(
+                torch.from_numpy(current_state).to(self.mppi_controller.device),
+                torch.from_numpy(last_contol).to(self.mppi_controller.device),
+                self.goal_pose,
+            )
+
+            return out.detach().cpu().numpy()
+        else:
+            return None

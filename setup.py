@@ -18,5 +18,5 @@ setup(
     include_package_data=True,
     packages=["xiron_py", "xiron_py/controller"],
     python_requires=">=3.9",
-    install_requires=["zmq"],
+    install_requires=["zmq", "torch"],
 )
