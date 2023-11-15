@@ -3,9 +3,9 @@ This contains the base implementation of the Controller class. There are few exa
 
 | Controller        | Stable | Differential | Omnidrive | Ackermann | 
 | :---------------- | :------: | :----: | :-------: | :--------: |
-| PID Controller    |   :white_check_mark:  | :white_check_mark: | [] | [] |
-| MPC               |   []   | [] | [] | [] |
-| MPPI              |  []   | []| [] | [] |
+| PID Controller    |   ✅  | ✅ | ❌ | ❌ |
+| MPC               |   ❌   | ❌ | ❌ | ❌ |
+| MPPI              |  ❌   | ❌| ❌ | ❌ |
 
 ## Writing your own Controller
 1. A custom controller should inherit from the base `Controller` class and implement the functions `set_plan` and `compute_control`.
