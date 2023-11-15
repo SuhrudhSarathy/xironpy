@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="xiron_py",
-    version="0.0.1",
+    version="0.0.2",
     author="Suhrudh Sarathy",
     author_email="suhrudhsarathy@gmail.com",
     description="Python interface to the Xiron simulator",
@@ -16,7 +16,7 @@ setup(
     ],
     zip_safe=False,
     include_package_data=True,
-    packages=["xiron_py", "xiron_py/controller"],
+    packages=find_packages(),
     python_requires=">=3.9",
-    install_requires=["zmq", "torch"],
+    install_requires=["zmq", "torch", "shapely"],
 )
