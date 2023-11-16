@@ -16,11 +16,17 @@ class Critic(nn.Module):
         self.weight = weight
         self.power = power
 
-    def forward(self, trajectory: torch.Tensor, goal_pose: torch.Tensor):
+    def forward(
+        self, trajectory: torch.Tensor, goal_pose: torch.Tensor, control: torch.Tensor
+    ):
         raise NotImplementedError
 
-    def __call__(self, trajectory: torch.Tensor, goal_pose: torch.Tensor):
-        return torch.pow(self.weight * self.forward(trajectory, goal_pose), self.power)
+    def __call__(
+        self, trajectory: torch.Tensor, goal_pose: torch.Tensor, control: torch.Tensor
+    ):
+        return torch.pow(
+            self.weight * self.forward(trajectory, goal_pose, control), self.power
+        )
 
 
 class DynamicsModel(nn.Module):
@@ -88,21 +94,23 @@ class MPPI(nn.Module):
     ) -> torch.Tensor:
         """Samples Random Noise on the GPU"""
 
-        noise_tensor = torch.randn(
-            size=[self.no_of_samples, self.control_dims, self.timesteps],
-            device=self.device,
-        )
+        noise_tensor = (
+            torch.randn(
+                size=[self.no_of_samples, self.control_dims, self.timesteps],
+                device=self.device,
+            )
+        ) * 0.9
 
         return noise_tensor
 
     @torch.no_grad()
     def evaluate_trajectories(
-        self, samples: torch.Tensor, goal_pose: torch.Tensor
+        self, samples: torch.Tensor, goal_pose: torch.Tensor, control: torch.Tensor
     ) -> torch.Tensor:
         cost_of_trajectory = torch.zeros((self.no_of_samples, 1))
         for critic in self.critics:
             name = critic.__class__.__name__
-            cost = critic(samples, goal_pose)
+            cost = critic(samples, goal_pose, control)
             print(f"Name: {name}. Mean cost: {torch.mean(cost)}")
             cost_of_trajectory += cost
 
@@ -172,7 +180,9 @@ class MPPI(nn.Module):
         )
         pertubed_control = control_tensor + noise_sample
         rolled_out_trajectories = self.rollout(current_state, pertubed_control)
-        weights = self.evaluate_trajectories(rolled_out_trajectories, goal_pose)
+        weights = self.evaluate_trajectories(
+            rolled_out_trajectories, goal_pose, pertubed_control
+        )
         control = self.compute_average_control(current_control, weights, noise_sample)
 
         return self._limit_control(control)
@@ -203,13 +213,25 @@ class DiffDriveModel(DynamicsModel):
         return torch.vstack([x, y, theta]).T
 
 
+class OmniDriveModel(DynamicsModel):
+    def __init__(self, dt: float = 0.1, device="cpu") -> None:
+        super().__init__(device)
+        self.dt = dt
+
+    def forward(self, state, control):
+        x = state[:, 0] + control[:, 0] * self.dt
+        y = state[:, 1] + control[:, 1] * self.dt
+
+        return torch.vstack([x, y]).T
+
+
 class PathLengthCritic(Critic):
     def __init__(self, device: str = "cpu") -> None:
         super().__init__(device)
 
         self.device = torch.device(device)
 
-    def forward(self, trajectory, goal_pose):
+    def forward(self, trajectory, _goal_pose, _control):
         cost_vec = torch.zeros((trajectory.shape[0], 1))
         cost_vec += cost_vec
 
@@ -227,11 +249,13 @@ class PathLengthCritic(Critic):
         return cost_vec / torch.max(cost_vec)
 
 
-class GoalCritic(Critic):
+class GoalReachingCritic(Critic):
     def __init__(self, device: str = "cpu") -> None:
         super().__init__(device, weight=1.0)
 
-    def forward(self, trajectory: torch.Tensor, goal_pose: torch.Tensor):
+    def forward(
+        self, trajectory: torch.Tensor, goal_pose: torch.Tensor, _control: torch.Tensor
+    ):
         cost_vec = torch.zeros((trajectory.shape[0]))
         diff_vector = trajectory - goal_pose
 
@@ -243,12 +267,68 @@ class GoalCritic(Critic):
             dist = x_items**2 + y_items**2
             cost_vec += dist
 
+        # Take sqrt
         cost_vec = torch.sqrt(cost_vec)
+
+        # Normalise to (0, 1) for proper global weightage
         cost_vec /= torch.max(cost_vec)
         return cost_vec.reshape(-1, 1)
 
 
+# This does not seem to work at all.
+# We need some critic that should be able to align the robot to path
+class AlignToPathCritic(Critic):
+    def __init__(self, device: str = "cpu") -> None:
+        super().__init__(device, weight=0.5)
+
+    def forward(
+        self, trajectory: torch.Tensor, goal_pose: torch.Tensor, _control: torch.Tensor
+    ):
+        cost_vec = torch.zeros((trajectory.shape[0]))
+        diff_vector = trajectory - goal_pose
+
+        # loop 20
+        x_items = diff_vector[:, 0, -1]
+        y_items = diff_vector[:, 1, -1]
+        dyaw = torch.atan2(y_items, x_items) - trajectory[:, 2, -1]
+        cost_vec += dyaw
+
+        cost_vec = (cost_vec - torch.min(cost_vec)) / (
+            torch.max(cost_vec) - torch.min(cost_vec)
+        )
+        return cost_vec.reshape(-1, 1)
+
+
+class AngularVelocityCritic(Critic):
+    def __init__(
+        self, device: str = "cpu", weight: float = 1.0, power: int = 1
+    ) -> None:
+        super().__init__(device, weight, power)
+
+    def forward(
+        self, _trajectory: torch.Tensor, _goal_pose: torch.Tensor, control: torch.Tensor
+    ):
+        # Blatanlty penalise sum of angular velocities in the control
+        cost_vector = torch.sum(control[:, 1, :] ** 2, dim=1)
+
+        cost_vector = cost_vector / torch.max(cost_vector)
+
+        return cost_vector.reshape(-1, 1)
+
+
 class MPPIController(Controller):
+    CRITICS_DICT = {
+        "PathLengthCritic": PathLengthCritic,
+        "GoalReachingCritic": GoalReachingCritic,
+        "AngularVelocityCritic": AngularVelocityCritic,
+        "AlignToPathCritic": AlignToPathCritic,
+    }
+
+    DYNAMICS_MODEL_DICT = {
+        "DiffDrive": DiffDriveModel,
+        "OmniDrive": OmniDriveModel,
+    }
+
     def __init__(
         self,
         control_dims: int = 2,
@@ -260,6 +340,8 @@ class MPPIController(Controller):
         device: str = "mps",
         max_control: list[float] = None,
         min_control: list[float] = None,
+        critics: list[str] = [],
+        model: str = "DiffDrive",
         *args,
         **kwargs,
     ):
@@ -275,10 +357,18 @@ class MPPIController(Controller):
             max_control,
             min_control,
         )
-        dynamics_model = DiffDriveModel(device="cpu")
+        # Do error handling here
+        dynamics_model = MPPIController.DYNAMICS_MODEL_DICT[model](dt=dt, device="cpu")
         self.mppi_controller.register_dynamics_model(dynamics_model)
-        self.mppi_controller.register_critic(PathLengthCritic())
-        self.mppi_controller.register_critic(GoalCritic())
+
+        for critic in critics:
+            critic_obj = MPPIController.CRITICS_DICT.get(critic, None)
+            if critic_obj is not None:
+                self.mppi_controller.register_critic(critic_obj())
+            else:
+                raise Exception(
+                    f"Unknown critic: {critic}. Available critics: {MPPIController.CRITICS_DICT.keys()}"
+                )
 
         self.plan = None
         self.goal_pose = None
