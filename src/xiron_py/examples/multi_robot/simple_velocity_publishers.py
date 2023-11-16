@@ -37,7 +37,7 @@ if __name__ == "__main__":
             vel_pub_robot1.publish(twist_message1)
             vel_pub_robot2.publish(twist_message2)
             sleep(0.1)
-    except KeyboardInterrupt as e:
+    except KeyboardInterrupt:
         twist_message0 = Twist("robot0", [0.5, 0.0], 0.0)
         twist_message1 = Twist("robot1", [0.5, 0.0], 0.0)
         twist_message2 = Twist("robot2", [0.5, 0.0], 0.0)

@@ -21,7 +21,7 @@ class ModelPredictiveController(Controller):
         timesteps: int = 10,
         dt: float = 0.1,
         *args,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
 

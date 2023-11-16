@@ -1,5 +1,3 @@
-from enum import Enum
-
 import numpy as np
 
 from xiron_py.controller import Controller

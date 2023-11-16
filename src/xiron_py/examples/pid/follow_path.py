@@ -3,7 +3,7 @@ from time import sleep
 import numpy as np
 
 from xiron_py.comms import XironContext
-from xiron_py.controller.pid import PIDConfig, PIDController
+from xiron_py.controller.pid import PIDController
 from xiron_py.data import Pose, Twist
 
 if __name__ == "__main__":

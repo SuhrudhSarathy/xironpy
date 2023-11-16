@@ -1,7 +1,5 @@
-import math
 from typing import Any
 
-import matplotlib.pyplot as plt
 import yaml
 from shapely.geometry import LineString, Point
 

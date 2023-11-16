@@ -1,5 +1,3 @@
-from typing import Any
-
 import numpy as np
 
 from xiron_py.env import EnvironmentManager
@@ -45,9 +43,10 @@ class RRT(Planner):
     @staticmethod
     def new_vector(point1: Node, point2: Node, threshold):
         vector = RRT.Node((point2.x - point1.x), (point2.y - point1.x))
-        vector.x, vector.y = vector.x / np.sqrt(
-            (vector.x**2 + vector.y**2)
-        ), vector.y / np.sqrt((vector.x**2 + vector.y**2))
+        vector.x, vector.y = (
+            vector.x / np.sqrt((vector.x**2 + vector.y**2)),
+            vector.y / np.sqrt((vector.x**2 + vector.y**2)),
+        )
         vector.x, vector.y = (
             point1.x + vector.x * threshold,
             point1.y + vector.y * threshold,
@@ -90,7 +89,7 @@ class RRT(Planner):
                 else:
                     pass
             if new_node.x == self.goal.x and new_node.y == self.goal.y:
-                self.is_reached == True
+                self.is_reached = True
                 path = self.backtrack(new_node)
                 print(f"Found a valid path in {i+i} iterations")
                 return [True, path]
