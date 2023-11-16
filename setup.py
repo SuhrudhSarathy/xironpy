@@ -18,5 +18,6 @@ setup(
     include_package_data=True,
     packages=find_packages(),
     python_requires=">=3.9",
-    install_requires=["zmq", "torch", "shapely"],
+    install_requires=["zmq", "shapely", "ruff"],
+    extras_require={"exp": ["torch", "casadi"]},
 )
