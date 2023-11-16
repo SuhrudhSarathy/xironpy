@@ -57,6 +57,7 @@ if __name__ == "__main__":
             env.plot(ax)
             planner.plot(ax, path)
 
+            fig.suptitle("RRT")
             plt.savefig("media/planner_results/rrt.png")
 
         controller.set_plan(path)
