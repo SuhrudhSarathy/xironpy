@@ -1,10 +1,11 @@
-import zmq
 import json
-from threading import Thread
 import time
 from dataclasses import asdict
+from threading import Thread
 
-from xiron_py.data import LaserScan, Twist, Pose
+import zmq
+
+from xiron_py.data import LaserScan, Pose, Twist
 
 
 class XironContext:

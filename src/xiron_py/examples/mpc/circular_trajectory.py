@@ -1,9 +1,10 @@
-from xiron_py.comms import XironContext
-from xiron_py.controller.mpc import ModelPredictiveController
-from xiron_py.data import Twist, Pose
+from time import sleep
 
 import numpy as np
-from time import sleep
+
+from xiron_py.comms import XironContext
+from xiron_py.controller.mpc import ModelPredictiveController
+from xiron_py.data import Pose, Twist
 
 
 def sample_points_in_a_circle(center, radius):

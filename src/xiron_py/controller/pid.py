@@ -1,6 +1,8 @@
-import numpy as np
-from xiron_py.controller import Controller
 from enum import Enum
+
+import numpy as np
+
+from xiron_py.controller import Controller
 
 
 class PIDConfig:
@@ -14,8 +16,8 @@ class PIDConfig:
         angular_ki: float = 0.0,
         min_linear_vel: float = 0.0,
         max_linear_vel: float = 0.5,
-        min_angular_vel: float = 1.0,
-        max_angular_vel: float = -1.0,
+        min_angular_vel: float = -1.0,
+        max_angular_vel: float = 1.0,
     ):
         self.linear_kp = linear_kp
         self.linear_kd = linear_kd
@@ -65,8 +67,6 @@ class PIDController(Controller):
         self.angular_error_prev: float = 0.0
         self.angular_error_integral: float = 0.0
 
-        self.current_goal_index = 0.0
-
     def normalise(self, angle):
         if angle > np.pi:
             angle -= 2 * np.pi
@@ -100,7 +100,7 @@ class PIDController(Controller):
 
     def set_plan(self, plan: np.ndarray | list) -> None:
         self.plan = plan
-
+        self.current_goal_index = 0
         self.reset_variables()
 
     def compute_contol(
@@ -108,18 +108,18 @@ class PIDController(Controller):
     ) -> np.ndarray:
         # Angle to pose
         target_pose = self.plan[self.current_goal_index]
-        angle = self.normalise(
-            current_state[2][0]
-            - np.arctan2(
+        angle = (
+            np.arctan2(
                 target_pose[1] - current_state[1][0],
                 target_pose[0] - current_state[0][0],
             )
+            - current_state[2][0]
         )
         distance = self.distance(current_state.reshape(-1, 1), target_pose)
 
         if abs(angle) > self.angle_threshold:
             # We have rotated towards the goal position now, let's move forward towards the goal
-            self.angular_error = distance
+            self.angular_error = angle
             angular_error_diff = self.angular_error - self.angular_error_prev
 
             ang_vel = self.clamp_vels(
@@ -147,7 +147,7 @@ class PIDController(Controller):
                     "linear",
                 )
 
-                if abs(angle) > self.angle_threshold * 0.5:
+                if abs(angle) > self.angle_threshold * 0.2:
                     ang_vel = self.clamp_vels(self.config.angular_kp * angle, "angular")
 
                 else:

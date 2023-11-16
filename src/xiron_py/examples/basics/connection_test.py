@@ -1,6 +1,7 @@
+from time import sleep
+
 from xiron_py.comms import XironContext
 from xiron_py.data import Twist
-from time import sleep
 
 
 def scan_callback(msg):

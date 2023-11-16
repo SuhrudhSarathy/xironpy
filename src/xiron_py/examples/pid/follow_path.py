@@ -1,10 +1,10 @@
-from xiron_py.comms import XironContext
-from xiron_py.controller.pid import PIDConfig, PIDController
-from xiron_py.data import Twist, Pose
-
-import numpy as np
 from time import sleep
 
+import numpy as np
+
+from xiron_py.comms import XironContext
+from xiron_py.controller.pid import PIDConfig, PIDController
+from xiron_py.data import Pose, Twist
 
 if __name__ == "__main__":
     last_control = np.array([0.0, 0.0]).reshape(-1, 1)

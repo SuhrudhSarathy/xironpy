@@ -1,6 +1,6 @@
+import time
 from dataclasses import dataclass
 from typing import List
-import time
 
 
 @dataclass

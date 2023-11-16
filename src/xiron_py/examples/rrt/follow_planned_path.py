@@ -1,10 +1,16 @@
 from time import sleep
 
+import matplotlib.pyplot as plt
 import numpy as np
 
 from xiron_py.comms import XironContext
-from xiron_py.controller.mpc import ModelPredictiveController
+from xiron_py.controller.pid import PIDConfig, PIDController
 from xiron_py.data import Pose, Twist
+from xiron_py.env import EnvironmentManager
+from xiron_py.planner.rrt import RRT, RRTConfig
+
+PLOT = True
+
 
 if __name__ == "__main__":
     last_control = np.array([0.0, 0.0]).reshape(-1, 1)
@@ -34,13 +40,29 @@ if __name__ == "__main__":
     # Create the Velocity publisher for robot0
     vel_pub = ctx.create_vel_publisher("robot0")
 
-    controller = ModelPredictiveController(timesteps=9)
-    goal = np.array([[0.0, 0.0, 0.0] for _ in range(10)]).T
+    controller = PIDController(
+        PIDConfig(angular_kp=0.5, angular_kd=0.0, angular_ki=0.0)
+    )
 
-    controller.set_plan(goal)
+    env = EnvironmentManager("src/xiron_py/examples/rrt/config.yaml")
 
-    # Create the Pose Subscriber and add callback function
-    ctx.create_pose_subscriber("robot0", pose_callback)
+    planner = RRT(env, RRTConfig(0.1, expand_dist=1.0))
+    start = np.array([-5.0, 2.5]).reshape(-1, 1)
+    goal = np.array([4.0, 7.0]).reshape(-1, 1)
+    path_found, path = planner.compute_plan(start, goal)
 
-    while True:
-        sleep(0.1)
+    if path_found:
+        if PLOT:
+            fig, ax = plt.subplots()
+            env.plot(ax)
+            planner.plot(ax, path)
+
+            plt.savefig("media/planner_results/rrt.png")
+
+        controller.set_plan(path)
+
+        # Create the Pose Subscriber and add callback function
+        ctx.create_pose_subscriber("robot0", pose_callback)
+
+        while True:
+            sleep(0.1)
