@@ -6,7 +6,7 @@ from xiron_py.comms import XironContext
 from xiron_py.controller.mppi import MPPIController
 from xiron_py.data import Pose, Twist
 
-DRIVE = "OmniDrive"
+DRIVE = "DiffDrive"
 
 if DRIVE == "DiffDrive":
     last_control = np.array([0.0, 0.0]).reshape(-1, 1)
@@ -40,9 +40,9 @@ if DRIVE == "DiffDrive":
     dt = 0.05
 
     critics = [
-        "PathLengthCritic",
+        # "PathLengthCritic",
         "GoalReachingCritic",
-        "AngularVelocityCritic",
+        # "AngularVelocityCritic",
         # "AlignToPathCritic",
     ]
 
@@ -79,7 +79,7 @@ elif DRIVE == "OmniDrive":
 
         if control is not None:
             twist_message = Twist(
-                "robot0", [control[0][0].item(), control[1][0].item()], 0.0
+                "robot0", [control[0][0].item(), 0.0], control[1][0].item()
             )
             print(twist_message)
             vel_pub.publish(twist_message)
@@ -98,20 +98,20 @@ elif DRIVE == "OmniDrive":
     dt = 0.05
 
     critics = [
-        "PathLengthCritic",
+        # "PathLengthCritic",
         "GoalReachingCritic",
         # "AngularVelocityCritic",
         # "AlignToPathCritic",
     ]
 
-    max_control = [0.5, 1.0]
-    min_control = [0.0, -1.0]
+    max_control = [0.5, 0.5]
+    min_control = [-0.5, -0.5]
     mppi = MPPIController(
         device="cpu",
         min_control=min_control,
         max_control=max_control,
         dt=dt,
-        no_of_samples=4000,
+        no_of_samples=2000,
         timesteps=20,
         critics=critics,
         state_dims=2,

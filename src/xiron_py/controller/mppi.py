@@ -1,5 +1,6 @@
 # This is experimental and subject to change
 
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -225,6 +226,19 @@ class OmniDriveModel(DynamicsModel):
         return torch.vstack([x, y]).T
 
 
+"""
+NOTE:
+1. The cost of the goal critic increases with the distance of the goal pose. This along with Path length critic leads to low velocities when the robot is far away from the goal pose. This is non ideal.
+2. The Align to path Critic's aim is to promotes trajectories that align with the goal pose. The current implementation just rotates the robot in place.
+3. It is really hard to get encapsulate the diff drive dynamics using these critics. Using Omnidrive, the controller seems to take the robot to the goal correctly.
+"""
+
+
+# TODO:
+# 1. Work on critics properly
+# 2. Extend this to trajectory following.
+
+
 class PathLengthCritic(Critic):
     def __init__(self, device: str = "cpu") -> None:
         super().__init__(device)
@@ -275,7 +289,7 @@ class GoalReachingCritic(Critic):
         return cost_vec.reshape(-1, 1)
 
 
-# This does not seem to work at all.
+# This does not seem to work vey well.
 # We need some critic that should be able to align the robot to path
 class AlignToPathCritic(Critic):
     def __init__(self, device: str = "cpu") -> None:
