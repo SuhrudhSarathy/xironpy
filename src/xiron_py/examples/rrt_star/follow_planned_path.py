@@ -7,7 +7,7 @@ from xiron_py.comms import XironContext
 from xiron_py.controller.pid import PIDConfig, PIDController
 from xiron_py.data import Pose, Twist
 from xiron_py.env import EnvironmentManager
-from xiron_py.planner.rrt import RRT, RRTConfig
+from xiron_py.planner.rrt_star import RRTStar, RRTStarConfig
 
 PLOT = True
 
@@ -46,7 +46,7 @@ if __name__ == "__main__":
 
     env = EnvironmentManager("src/xiron_py/examples/rrt/config.yaml")
 
-    planner = RRT(env, RRTConfig(0.01, expand_dist=2.5, stay_away_dist=0.0))
+    planner = RRTStar(env, RRTStarConfig(0.01, expand_dist=2.5, stay_away_dist=0.0))
     start = np.array([-5.0, 2.5]).reshape(-1, 1)
     goal = np.array([4.0, 7.0]).reshape(-1, 1)
     path_found, path = planner.compute_plan(start, goal)

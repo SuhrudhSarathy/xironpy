@@ -1,5 +1,5 @@
 from typing import Any
-
+import numpy as np
 import yaml
 from shapely.geometry import LineString, Point
 
@@ -42,7 +42,7 @@ class StaticObject:
         ]
         width = float(static_obj_dict["width"]) * 0.5
         height = float(static_obj_dict["height"]) * 0.5
-        rotation = float(static_obj_dict["rotation"])
+        _rotation = float(static_obj_dict["rotation"])
 
         self.endpoints += [
             [
@@ -91,12 +91,22 @@ class EnvironmentManager:
 
         self.obstacles = self.walls + self.static_objects
 
-    def isPathValid(self, path) -> bool:
+    def isPathValid(
+        self, path: list, buffer: bool = True, buffer_dist: float = 0.5
+    ) -> bool:
         for i in range(0, len(path) - 1):
             next_pose = path[i + 1]
             current_pose = path[i]
 
-            line = LineString([current_pose, next_pose])
+            if type(next_pose) == np.ndarray:
+                next_pose = [next_pose[0], next_pose[1]]
+            if type(current_pose) == np.ndarray:
+                current_pose = [current_pose[0], current_pose[1]]
+
+            if buffer:
+                line = LineString([current_pose, next_pose]).buffer(buffer_dist)
+            else:
+                line = LineString([current_pose, next_pose])
 
             for obj in self.obstacles:
                 if line.intersects(obj.collision_object):
@@ -104,8 +114,20 @@ class EnvironmentManager:
 
         return True
 
-    def isPoseWithin(self, pose) -> bool:
-        pose_point = Point([pose[0], pose[1]])
+    def isPoseWithin(
+        self, pose: list, buffer: bool = True, buffer_dist: float = 0.25
+    ) -> bool:
+        if type(pose) == np.ndarray:
+            pose = list(
+                pose.reshape(
+                    -1,
+                )
+            )
+        if buffer:
+            pose_point = Point([pose[0], pose[1]]).buffer(buffer_dist)
+        else:
+            pose_point = Point([pose[0], pose[1]]).buffer(buffer_dist)
+
         for obj in self.obstacles:
             if pose_point.intersects(obj.collision_object) or pose_point.within(
                 obj.collision_object

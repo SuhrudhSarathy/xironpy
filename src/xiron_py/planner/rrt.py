@@ -10,10 +10,12 @@ class RRTConfig:
         goal_bias_threshold: float = 0.1,
         expand_dist: float = 0.5,
         max_iter: int = 1000,
+        stay_away_dist: float = 0.2,
     ) -> None:
         self.goal_bias_threshold = goal_bias_threshold
         self.expand_dist = expand_dist
         self.max_iter = max_iter
+        self.stay_away_dist = stay_away_dist
 
 
 class RRT(Planner):
@@ -70,7 +72,8 @@ class RRT(Planner):
             if RRT.distance(nearby_node, new_node) <= self.config.expand_dist:
                 if (
                     self.env_manager.isPathValid([nearby_node(), new_node()])
-                    and self.env_manager.distance(new_node()) > 0.75
+                    and self.env_manager.distance(new_node())
+                    > self.config.stay_away_dist
                 ):
                     new_node.parent = nearby_node
                     self.nodes.append(new_node)
@@ -82,7 +85,8 @@ class RRT(Planner):
                 )
                 if (
                     self.env_manager.isPathValid([nearby_node(), new_node()])
-                    and self.env_manager.distance(new_node()) > 0.75
+                    and self.env_manager.distance(new_node())
+                    > self.config.stay_away_dist
                 ):
                     new_node.parent = nearby_node
                     self.nodes.append(new_node)

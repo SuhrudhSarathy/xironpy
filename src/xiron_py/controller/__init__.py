@@ -12,8 +12,3 @@ class Controller:
         self, current_state: np.ndarray | list, last_contol: np.ndarray | list
     ) -> np.ndarray:
         raise NotImplementedError
-
-
-from .mpc import ModelPredictiveController
-from .mppi import MPPIController
-from .pid import PIDController
