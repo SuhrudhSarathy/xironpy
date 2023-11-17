@@ -395,6 +395,9 @@ class MPPIController(Controller):
             .reshape(-1, 1)
         )
 
+    def look_ahead_pose(self):
+        pass
+
     def compute_contol(
         self, current_state: np.ndarray, last_contol: np.ndarray
     ) -> np.ndarray:
