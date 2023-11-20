@@ -16,7 +16,8 @@ setup(
     ],
     zip_safe=False,
     include_package_data=True,
-    packages=find_packages(),
+    packages=find_packages(where='src'),  # Specify the 'src' directory
+    package_dir={'': 'src'},  # Specify the root directory for packages
     python_requires=">=3.9",
     install_requires=["zmq", "shapely", "ruff"],
     extras_require={"exp": ["torch", "casadi"]},
