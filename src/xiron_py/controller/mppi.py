@@ -6,7 +6,24 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from time import time
 from xiron_py.controller import Controller
+
+class utils:
+    @staticmethod
+    def normalise_angle(tensor: torch.Tensor):
+        tensor = torch.where(tensor > torch.pi, tensor - 2 * torch.pi, tensor)
+        tensor = torch.where(tensor < -torch.pi, tensor + 2 * torch.pi, tensor)
+
+        return tensor
+    
+    @staticmethod
+    def normalise_to_one(tensor: torch.Tensor):
+        return (tensor - torch.min(tensor)) / (torch.max(tensor) - torch.min(tensor))
+    
+    @staticmethod
+    def shortest_angle_distance(from_angle , to_angle):
+        return utils.normalise_angle(to_angle - from_angle)
 
 
 class Critic(nn.Module):
@@ -18,16 +35,18 @@ class Critic(nn.Module):
         self.weight = weight
         self.power = power
 
+        print(f"Initialised Critic: {self.__class__.__name__}")
+
     def forward(
-        self, trajectory: torch.Tensor, goal_pose: torch.Tensor, control: torch.Tensor
+        self, trajectory: torch.Tensor, goal_path: torch.Tensor, control: torch.Tensor
     ):
         raise NotImplementedError
 
     def __call__(
-        self, trajectory: torch.Tensor, goal_pose: torch.Tensor, control: torch.Tensor
+        self, trajectory: torch.Tensor, goal_path: torch.Tensor, control: torch.Tensor
     ):
         return torch.pow(
-            self.weight * self.forward(trajectory, goal_pose, control), self.power
+            self.weight * self.forward(trajectory, goal_path, control), self.power
         )
 
 
@@ -49,12 +68,13 @@ class MPPI(nn.Module):
         control_dims: int = 2,
         state_dims: int = 3,
         timesteps: int = 20,
-        dt: float = 0.1,
-        temperature: float = 0.1,
-        no_of_samples: int = 1000,
-        device: str = "mps",
+        dt: float = (1/30),
+        temperature: float = 0.3,
+        no_of_samples: int = 2000,
+        device: str = "cpu",
         max_control: list[float] = None,
         min_control: list[float] = None,
+        control_std_dev: list[float] = [0.5, 0.9]
     ) -> None:
         super().__init__()
         self.control_dims = control_dims
@@ -66,6 +86,7 @@ class MPPI(nn.Module):
         self.critics: list[Critic] = []
         self.model = DynamicsModel()
         self.temperature = temperature
+        self.std_dev_tensor = torch.Tensor(control_std_dev).reshape(-1, 1).to(device)
 
         self.max_control = torch.zeros((self.control_dims, self.timesteps))
         if max_control is None:
@@ -101,7 +122,7 @@ class MPPI(nn.Module):
                 size=[self.no_of_samples, self.control_dims, self.timesteps],
                 device=self.device,
             )
-        ) * 0.9
+        ) * self.std_dev_tensor
 
         return noise_tensor
 
@@ -113,7 +134,7 @@ class MPPI(nn.Module):
         for critic in self.critics:
             name = critic.__class__.__name__
             cost = critic(samples, goal_pose, control)
-            print(f"Name: {name}. Mean cost: {torch.mean(cost)}")
+            # print(f"Name: {name}. Mean cost: {torch.mean(cost)}")
             cost_of_trajectory += cost
 
         # Convert cost of trajectory to weights
@@ -164,7 +185,7 @@ class MPPI(nn.Module):
         self,
         current_state: torch.Tensor,
         current_control: torch.Tensor,
-        goal_pose: torch.Tensor,
+        goal_path: torch.Tensor,
     ) -> torch.Tensor:
         # Make sure they are on the same device
         if current_state.device != self.device:
@@ -181,9 +202,13 @@ class MPPI(nn.Module):
             (self.control_dims, self.timesteps), device=self.device
         )
         pertubed_control = control_tensor + noise_sample
+        pertubed_control = self._limit_control(pertubed_control)
+        
         rolled_out_trajectories = self.rollout(current_state, pertubed_control)
+        with open(f"/tmp/rolled_traj_{time()}.npy", "wb") as file:
+            np.save(file, rolled_out_trajectories.detach().cpu().numpy())
         weights = self.evaluate_trajectories(
-            rolled_out_trajectories, goal_pose, pertubed_control
+            rolled_out_trajectories, goal_path, pertubed_control
         )
         control = self.compute_average_control(current_control, weights, noise_sample)
 
@@ -201,19 +226,18 @@ class MPPI(nn.Module):
     ) -> torch.Tensor:
         return self.forward(current_state, current_control, goal_pose)
 
-
+#!--- Drive Models ---!#
 class DiffDriveModel(DynamicsModel):
     def __init__(self, dt: float = 0.1, device="cpu") -> None:
         super().__init__(device)
         self.dt = dt
 
     def forward(self, state, control):
-        theta = state[:, 2] + control[:, 1] * self.dt
+        theta = utils.normalise_angle(state[:, 2] + control[:, 1] * self.dt)
         x = state[:, 0] + control[:, 0] * torch.cos(theta) * self.dt
         y = state[:, 1] + control[:, 0] * torch.sin(theta) * self.dt
 
         return torch.vstack([x, y, theta]).T
-
 
 class OmniDriveModel(DynamicsModel):
     def __init__(self, dt: float = 0.1, device="cpu") -> None:
@@ -234,45 +258,37 @@ NOTE:
 3. It is really hard to get encapsulate the diff drive dynamics using these critics. Using Omnidrive, the controller seems to take the robot to the goal correctly.
 """
 
+#!--- Drive Models ---!#
 
 # TODO:
 # 1. Work on critics properly
 # 2. Extend this to trajectory following.
 
-
 class PathLengthCritic(Critic):
-    def __init__(self, device: str = "cpu") -> None:
-        super().__init__(device)
+    def __init__(self, device: str = "cpu", weight: float = 1.0, power: int = 1) -> None:
+        super().__init__(device, weight, power)
 
         self.device = torch.device(device)
 
-    def forward(self, trajectory, _goal_pose, _control):
+    def forward(self, trajectory, _goal_path, _control):
         cost_vec = torch.zeros((trajectory.shape[0], 1))
-        cost_vec += cost_vec
 
         # loop 20
         for t in range(1, trajectory.shape[2]):
-            cost_vec += (
-                (
-                    (trajectory[:, 0, t] - trajectory[:, 0, t - 1]) ** 2
-                    + (trajectory[:, 1, t] - trajectory[:, 1, t - 1]) ** 2
-                )
-                .reshape(-1, 1)
-                .to(self.device)
-            )
+            cost_vec += torch.linalg.norm(trajectory[:, :2, t] - trajectory[:, :2, t-1], dim=1).reshape(-1, 1)
 
-        return cost_vec / torch.max(cost_vec)
+        return utils.normalise_to_one(cost_vec.reshape(-1, 1))
 
 
 class GoalReachingCritic(Critic):
-    def __init__(self, device: str = "cpu") -> None:
-        super().__init__(device, weight=1.0)
+    def __init__(self, device: str = "cpu", weight: float = 1.0, power: int = 1) -> None:
+        super().__init__(device, weight, power)
 
     def forward(
-        self, trajectory: torch.Tensor, goal_pose: torch.Tensor, _control: torch.Tensor
+        self, trajectory: torch.Tensor, goal_path: torch.Tensor, _control: torch.Tensor
     ):
         cost_vec = torch.zeros((trajectory.shape[0]))
-        diff_vector = trajectory - goal_pose
+        diff_vector = trajectory - goal_path[:, -1].reshape(-1, 1)
 
         # loop 20
         for t in range(0, trajectory.shape[2]):
@@ -286,21 +302,19 @@ class GoalReachingCritic(Critic):
         cost_vec = torch.sqrt(cost_vec)
 
         # Normalise to (0, 1) for proper global weightage
-        cost_vec /= torch.max(cost_vec)
-        return cost_vec.reshape(-1, 1)
-
+        return utils.normalise_to_one(cost_vec).reshape(-1, 1)
 
 # This does not seem to work vey well.
 # We need some critic that should be able to align the robot to path
 class AlignToPathCritic(Critic):
-    def __init__(self, device: str = "cpu") -> None:
-        super().__init__(device, weight=0.5)
+    def __init__(self, device: str = "cpu", weight: float = 1.0, power: int = 1) -> None:
+        super().__init__(device, weight, power)
 
     def forward(
-        self, trajectory: torch.Tensor, goal_pose: torch.Tensor, _control: torch.Tensor
+        self, trajectory: torch.Tensor, goal_path: torch.Tensor, _control: torch.Tensor
     ):
         cost_vec = torch.zeros((trajectory.shape[0]))
-        diff_vector = trajectory - goal_pose
+        diff_vector = trajectory - goal_path[:, -1]
 
         # loop 20
         x_items = diff_vector[:, 0, -1]
@@ -308,16 +322,12 @@ class AlignToPathCritic(Critic):
         dyaw = torch.atan2(y_items, x_items) - trajectory[:, 2, -1]
         cost_vec += dyaw
 
-        cost_vec = (cost_vec - torch.min(cost_vec)) / (
-            torch.max(cost_vec) - torch.min(cost_vec)
-        )
+        cost_vec = utils.normalise_to_one(cost_vec)
         return cost_vec.reshape(-1, 1)
 
 
 class AngularVelocityCritic(Critic):
-    def __init__(
-        self, device: str = "cpu", weight: float = 1.0, power: int = 1
-    ) -> None:
+    def __init__(self, device: str = "cpu", weight: float = 1.0, power: int = 1) -> None:
         super().__init__(device, weight, power)
 
     def forward(
@@ -326,7 +336,7 @@ class AngularVelocityCritic(Critic):
         # Blatanlty penalise sum of angular velocities in the control
         cost_vector = torch.sum(control[:, 1, :] ** 2, dim=1)
 
-        cost_vector = cost_vector / torch.max(cost_vector)
+        cost_vector = utils.normalise_to_one(cost_vector)
 
         return cost_vector.reshape(-1, 1)
 
@@ -357,6 +367,8 @@ class MPPIController(Controller):
         min_control: list[float] = None,
         critics: list[str] = [],
         model: str = "DiffDrive",
+        control_std_dev: list[float] = [0.5, 0.9],
+        max_horizon_distance: float = 1.5,
         *args,
         **kwargs,
     ):
@@ -371,6 +383,7 @@ class MPPIController(Controller):
             device,
             max_control,
             min_control,
+            control_std_dev
         )
         # Do error handling here
         dynamics_model = MPPIController.DYNAMICS_MODEL_DICT[model](dt=dt, device="cpu")
@@ -387,6 +400,7 @@ class MPPIController(Controller):
 
         self.plan = None
         self.goal_pose = None
+        self.max_horizon_distance = max_horizon_distance
 
     def set_plan(self, plan: np.ndarray) -> None:
         self.plan = plan
@@ -396,9 +410,28 @@ class MPPIController(Controller):
             .reshape(-1, 1)
         )
 
-    def look_ahead_pose(self):
-        pass
+    def get_receding_horizon_path(self, pose):
+        def first_after_integrated_distance(path, distance):
+            # Get the last point that is atleast 1.5 m away
+            cum_distance = 0.0
+            for i in range(0, path.shape[1]-2):
+                distance = np.linalg.norm(path[:, i+1] - path[:, i])
+                cum_distance = distance + cum_distance
+                if cum_distance > self.max_horizon_distance:
+                    return i+1
+            return -1
+        
+        # first get the nearest pose in the path
+        # TODO: Do we handle already travelled poses?
+        nearest_pose_index = np.argmin(np.linalg.norm(self.plan - pose, axis=0))
+        new_plan = self.plan[:, nearest_pose_index:]
+        index_after_horizon_dist = first_after_integrated_distance(new_plan, self.max_horizon_distance)
 
+        if index_after_horizon_dist == -1:
+            return new_plan
+        else:
+            return new_plan[:, :index_after_horizon_dist+1]
+        
     def compute_contol(
         self, current_state: np.ndarray, last_contol: np.ndarray
     ) -> np.ndarray:
@@ -406,7 +439,7 @@ class MPPIController(Controller):
             out = self.mppi_controller(
                 torch.from_numpy(current_state).to(self.mppi_controller.device),
                 torch.from_numpy(last_contol).to(self.mppi_controller.device),
-                self.goal_pose,
+                self.get_receding_horizon_path(current_state),
             )
 
             return out.detach().cpu().numpy()

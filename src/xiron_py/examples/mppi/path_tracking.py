@@ -5,6 +5,8 @@ from xiron_py.comms import XironContext
 from xiron_py.controller.mppi import MPPIController
 from xiron_py.data import Pose, Twist
 
+from loguru import logger
+
 last_control = np.array([0.0, 0.0]).reshape(-1, 1)
 
 
@@ -20,13 +22,13 @@ def pose_callback(msg: Pose):
         twist_message = Twist(
             "robot0", [control[0][0].item(), 0.0], control[1][0].item()
         )
-        print(twist_message)
+        # print(twist_message)
         vel_pub.publish(twist_message)
         last_control = control
     else:
         twist_message = Twist("robot0", [0.0, 0.0], 0.0)
         vel_pub.publish(twist_message)
-        print("Got None out from the controller. Setting to zero velocity")
+        logger.error("Got None out from the controller. Setting to zero velocity")
         last_control = np.array([0.0, 0.0]).reshape(-1, 1)
 
 
@@ -35,12 +37,12 @@ ctx = XironContext()
 
 # Create the Velocity publisher for robot0
 vel_pub = ctx.create_vel_publisher("robot0")
-dt = 0.05
+dt = (1/30)
 
 critics = [
     # "PathLengthCritic",
     "GoalReachingCritic",
-    # "AngularVelocityCritic",
+    "AngularVelocityCritic",
     # "AlignToPathCritic",
 ]
 
@@ -51,12 +53,12 @@ mppi = MPPIController(
     min_control=min_control,
     max_control=max_control,
     dt=dt,
-    no_of_samples=4000,
+    no_of_samples=2000,
     timesteps=20,
     critics=critics,
+    temperature=0.3
 )
-
-plan = np.array([[0.0, 0.0, 0.0]])
+plan = np.linspace([5, 5, 0], [0, 0, 0], 20).T
 mppi.set_plan(plan)
 
 # Create the Pose Subscriber and add callback function

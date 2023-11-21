@@ -20,5 +20,5 @@ setup(
     package_dir={'': 'src'},  # Specify the root directory for packages
     python_requires=">=3.9",
     install_requires=["zmq", "shapely", "ruff"],
-    extras_require={"exp": ["torch", "casadi"]},
+    extras_require={"exp": ["torch", "casadi"], "test": ["pytest"]},
 )

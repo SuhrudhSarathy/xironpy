@@ -42,7 +42,7 @@ if DRIVE == "DiffDrive":
     critics = [
         # "PathLengthCritic",
         "GoalReachingCritic",
-        # "AngularVelocityCritic",
+        "AngularVelocityCritic",
         # "AlignToPathCritic",
     ]
 
