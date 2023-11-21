@@ -5,16 +5,17 @@ from xiron_py.comms import XironContext
 from xiron_py.controller.mppi import MPPIController
 from xiron_py.data import Pose, Twist
 
-from loguru import logger
+import matplotlib.pyplot as plt
 
 last_control = np.array([0.0, 0.0]).reshape(-1, 1)
-
+robot_poses = []
 
 def pose_callback(msg: Pose):
-    global last_control
+    global last_control, robot_poses
     pose_array = np.array([msg.position[0], msg.position[1], msg.orientation]).reshape(
         -1, 1
     )
+    robot_poses.append(pose_array)
 
     control = mppi.compute_contol(pose_array, last_control)
 
@@ -28,7 +29,7 @@ def pose_callback(msg: Pose):
     else:
         twist_message = Twist("robot0", [0.0, 0.0], 0.0)
         vel_pub.publish(twist_message)
-        logger.error("Got None out from the controller. Setting to zero velocity")
+        print("Got None out from the controller. Setting to zero velocity")
         last_control = np.array([0.0, 0.0]).reshape(-1, 1)
 
 
@@ -42,8 +43,8 @@ dt = (1/30)
 critics = [
     # "PathLengthCritic",
     "GoalReachingCritic",
-    "AngularVelocityCritic",
-    # "AlignToPathCritic",
+    # "AngularVelocityCritic",
+    "AlignToPathCritic",
 ]
 
 max_control = [0.5, 1.0]
@@ -53,16 +54,57 @@ mppi = MPPIController(
     min_control=min_control,
     max_control=max_control,
     dt=dt,
-    no_of_samples=2000,
+    no_of_samples=4000,
     timesteps=20,
     critics=critics,
-    temperature=0.3
+    temperature=0.3,
+    control_std_dev=[0.2, 0.5]
 )
-plan = np.linspace([5, 5, 0], [0, 0, 0], 20).T
+
+def figure_eight_spiral(radius, num_points, rotations):
+    theta = np.linspace(0, rotations * 2 * np.pi, num_points)
+    
+    x1 = radius * np.cos(theta)
+    y1 = radius * np.sin(2*theta)
+    
+    return x1, y1
+
+# Parameters for the figure-eight double spiral
+radius = 3
+num_points = 100
+rotations = 1
+
+# Generate figure-eight double spiral points
+x1, y1 = figure_eight_spiral(radius, num_points, rotations)
+
+plan = []
+for (x, y) in zip(x1, y1):
+    plan.append([x, y, 0])
+
+plan = np.array(plan).T
+print("Starting Pose: ", plan[:, 0])
+
 mppi.set_plan(plan)
 
 # Create the Pose Subscriber and add callback function
 ctx.create_pose_subscriber("robot0", pose_callback)
 
-while True:
-    sleep(dt)
+try:
+    while True:
+        sleep(dt)
+except KeyboardInterrupt as e:
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.scatter(x1, y1, color="green", marker="*", label="Target Path")
+    ax.plot(x1, y1, "g--", alpha=0.5)
+
+    X_real = [rp[0][0] for rp in robot_poses]
+    Y_real = [rp[1][0] for rp in robot_poses]
+
+    ax.plot(X_real, Y_real, color="red", alpha=0.5, label="Actual Followed Path")
+    ax.set_title("MPPI Controller")
+    
+    plt.legend()
+    plt.axis('equal')
+    # plt.show()
+
+    plt.savefig("media/controller_results/mppi_diff_drive.png")

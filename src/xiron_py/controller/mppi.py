@@ -314,7 +314,7 @@ class AlignToPathCritic(Critic):
         self, trajectory: torch.Tensor, goal_path: torch.Tensor, _control: torch.Tensor
     ):
         cost_vec = torch.zeros((trajectory.shape[0]))
-        diff_vector = trajectory - goal_path[:, -1]
+        diff_vector = trajectory - goal_path[:, -1].reshape(-1, 1)
 
         # loop 20
         x_items = diff_vector[:, 0, -1]
