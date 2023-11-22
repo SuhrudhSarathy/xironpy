@@ -2,12 +2,12 @@
 from time import sleep
 import numpy as np
 from xiron_py.comms import XironContext
-from xiron_py.controller.mppi import MPPIController
+from xiron_py.controller.ilqr import ILQR
 from xiron_py.data import Pose, Twist
 
 import matplotlib.pyplot as plt
 
-last_control = np.array([0.0, 0.0]).reshape(-1, 1)
+last_control = np.array([0.001, 0.001]).reshape(-1, 1)
 robot_poses = []
 
 def pose_callback(msg: Pose):
@@ -17,20 +17,20 @@ def pose_callback(msg: Pose):
     )
     robot_poses.append(pose_array)
 
-    control = mppi.compute_contol(pose_array, last_control)
+    control = controller.compute_contol(pose_array, last_control)
 
     if control is not None:
         twist_message = Twist(
             "robot0", [control[0][0].item(), 0.0], control[1][0].item()
         )
-        # print(twist_message)
+        print(twist_message)
         vel_pub.publish(twist_message)
         last_control = control
     else:
         twist_message = Twist("robot0", [0.0, 0.0], 0.0)
         vel_pub.publish(twist_message)
         print("Got None out from the controller. Setting to zero velocity")
-        last_control = np.array([0.0, 0.0]).reshape(-1, 1)
+        last_control = np.array([0.001, 0.001]).reshape(-1, 1)
 
 
 # Create a context object
@@ -49,18 +49,7 @@ critics = [
 
 max_control = [0.5, 1.0]
 min_control = [0.0, -1.0]
-mppi = MPPIController(
-    device="cpu",
-    min_control=min_control,
-    max_control=max_control,
-    dt=dt,
-    no_of_samples=3000,
-    timesteps=56,
-    critics=critics,
-    temperature=0.3,
-    control_std_dev=[0.5, 0.7],
-    max_horizon_distance=1.2
-)
+controller = ILQR(np.diag([10.0, 10.0, 1.0]), np.diag([0.1, 0.1]))
 
 def figure_eight_spiral(radius, num_points, rotations):
     theta = np.linspace(0, rotations * 2 * np.pi, num_points)
@@ -85,7 +74,7 @@ for (x, y) in zip(x1, y1):
 plan = np.array(plan).T
 print("Starting Pose: ", plan[:, 0])
 
-mppi.set_plan(plan)
+controller.set_plan(plan)
 
 # Create the Pose Subscriber and add callback function
 ctx.create_pose_subscriber("robot0", pose_callback)
@@ -108,4 +97,4 @@ except KeyboardInterrupt as e:
     plt.axis('equal')
     # plt.show()
 
-    plt.savefig("media/controller_results/mppi_diff_drive.png")
+    plt.savefig("media/controller_results/ilqr_diff_drive.png")

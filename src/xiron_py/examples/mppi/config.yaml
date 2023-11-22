@@ -1,0 +1,16 @@
+robots:
+- id: robot0
+  pose:
+  - 2.9750004
+  - 0.05000019
+  - 1.6147243
+  vel:
+  - 0.0
+  - 0.0
+  lidar: true
+  footprint:
+  - 0.25
+  drive_type: Differential
+  add_noise: false
+walls: []
+static_objects: []

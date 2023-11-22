@@ -63,7 +63,7 @@ if __name__ == "__main__":
         critics=critics,
         temperature=0.3,
         control_std_dev=[0.5, 0.9],
-        max_horizon_distance=3.0,
+        max_horizon_distance=1.0,
     )
 
     env = EnvironmentManager("src/xiron_py/examples/informed_rrt_star/config.yaml")
