@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 last_control = np.array([0.0, 0.0]).reshape(-1, 1)
 robot_poses = []
 
+
 def pose_callback(msg: Pose):
     global last_control, robot_poses
     pose_array = np.array([msg.position[0], msg.position[1], msg.orientation]).reshape(
@@ -38,7 +39,7 @@ ctx = XironContext()
 
 # Create the Velocity publisher for robot0
 vel_pub = ctx.create_vel_publisher("robot0")
-dt = (1/30)
+dt = 1 / 30
 
 critics = [
     # "PathLengthCritic",
@@ -59,16 +60,18 @@ mppi = MPPIController(
     critics=critics,
     temperature=0.3,
     control_std_dev=[0.5, 0.7],
-    max_horizon_distance=1.2
+    max_horizon_distance=1.2,
 )
+
 
 def figure_eight_spiral(radius, num_points, rotations):
     theta = np.linspace(0, rotations * 2 * np.pi, num_points)
-    
+
     x1 = radius * np.cos(theta)
-    y1 = radius * np.sin(2*theta)
-    
+    y1 = radius * np.sin(2 * theta)
+
     return x1, y1
+
 
 # Parameters for the figure-eight double spiral
 radius = 3
@@ -79,7 +82,7 @@ rotations = 1
 x1, y1 = figure_eight_spiral(radius, num_points, rotations)
 
 plan = []
-for (x, y) in zip(x1, y1):
+for x, y in zip(x1, y1):
     plan.append([x, y, 0])
 
 plan = np.array(plan).T
@@ -103,9 +106,9 @@ except KeyboardInterrupt as e:
 
     ax.plot(X_real, Y_real, color="red", alpha=0.5, label="Actual Followed Path")
     ax.set_title("MPPI Controller")
-    
+
     plt.legend()
-    plt.axis('equal')
+    plt.axis("equal")
     # plt.show()
 
     plt.savefig("media/controller_results/mppi_diff_drive.png")

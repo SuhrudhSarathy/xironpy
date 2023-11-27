@@ -2,6 +2,7 @@ from xiron_py.controller.mppi import *
 import pytest
 import torch
 
+
 @pytest.fixture
 def critics():
     return [
@@ -11,22 +12,36 @@ def critics():
         "AlignToPathCritic",
     ]
 
+
 @pytest.fixture
 def controller(critics):
-    
-    controller = MPPIController(device="cpu", max_control=[0.5, 1.0], min_control=[0.0, -1.0], critics=critics, timesteps=10, no_of_samples=2, control_std_dev=[0.2, 0.3])
+    controller = MPPIController(
+        device="cpu",
+        max_control=[0.5, 1.0],
+        min_control=[0.0, -1.0],
+        critics=critics,
+        timesteps=10,
+        no_of_samples=2,
+        control_std_dev=[0.2, 0.3],
+    )
 
     return controller
 
+
 def test_initialisation(controller: MPPIController, critics: list):
     assert len(controller.mppi_controller.critics) == len(critics)
-    assert controller.mppi_controller.model.__class__.__name__ == DiffDriveModel.__name__
+    assert (
+        controller.mppi_controller.model.__class__.__name__ == DiffDriveModel.__name__
+    )
+
 
 def test_noise_generated(controller: MPPIController):
     noise = controller.mppi_controller.sample()
     control = torch.tensor([0.1, 0.1]).reshape(-1, 1) * torch.ones((2, 2, 10))
     perturbed_control = control + noise
-    clamped_perturbed_control = controller.mppi_controller._limit_control(perturbed_control)
+    clamped_perturbed_control = controller.mppi_controller._limit_control(
+        perturbed_control
+    )
 
     print(clamped_perturbed_control[:, 0, :])
     print(clamped_perturbed_control[:, 1, :])
@@ -36,6 +51,7 @@ def test_noise_generated(controller: MPPIController):
     assert torch.min(clamped_perturbed_control[:, 0, :]) >= 0.0
     assert torch.min(clamped_perturbed_control[:, 1, :]) >= -1.0
 
+
 def test_rollout(controller: MPPIController):
     current_state = torch.tensor([0.0, 0.0, 0.0]).reshape(-1, 1)
     control = torch.tensor([0.1, 0.0]).reshape(-1, 1) * torch.ones((2, 2, 10))
@@ -43,6 +59,7 @@ def test_rollout(controller: MPPIController):
     rolled_out_traj = controller.mppi_controller.rollout(current_state, control)
     assert abs(rolled_out_traj[0, 0, -1].item() - 0.1) < 1e-5
     assert abs(rolled_out_traj[1, 0, -1].item() - 0.1) < 1e-5
+
 
 def test_weighted_sum(controller: MPPIController):
     VCONTROL_1 = 0.1
@@ -62,21 +79,35 @@ def test_weighted_sum(controller: MPPIController):
 
     weights = torch.tensor([WEIGHT_1, WEIGHT_2]).reshape(-1, 1)
 
-    weighted_control = controller.mppi_controller.compute_average_control(current_control, weights, perturbed_control)
-    
+    weighted_control = controller.mppi_controller.compute_average_control(
+        current_control, weights, perturbed_control
+    )
+
     weights_sum = WEIGHT_1 + WEIGHT_2
-    vsum_to_be_added = (VCONTROL_1 * WEIGHT_1 + VCONTROL_2 * WEIGHT_2)/weights_sum
-    wsum_to_be_added = (WCONTROL_1 * WEIGHT_1 + WCONTROL_2 * WEIGHT_2)/weights_sum
+    vsum_to_be_added = (VCONTROL_1 * WEIGHT_1 + VCONTROL_2 * WEIGHT_2) / weights_sum
+    wsum_to_be_added = (WCONTROL_1 * WEIGHT_1 + WCONTROL_2 * WEIGHT_2) / weights_sum
 
     print(weighted_control[0, 0].item())
     print(weighted_control[1, 0].item())
 
+    assert weighted_control[0, 0].item() == pytest.approx(
+        current_control[0][0].item() + vsum_to_be_added, 1e-4
+    )
+    assert weighted_control[1, 0].item() == pytest.approx(
+        current_control[1][0].item() + wsum_to_be_added, 1e-4
+    )
 
-    assert weighted_control[0, 0].item() == pytest.approx(current_control[0][0].item() + vsum_to_be_added, 1e-4)
-    assert weighted_control[1, 0].item() == pytest.approx(current_control[1][0].item() + wsum_to_be_added, 1e-4)
 
 def test_path_length_critic(critics):
-    controller = MPPIController(device="cpu", max_control=[0.5, 1.0], min_control=[0.0, -1.0], critics=critics, timesteps=10, no_of_samples=3, control_std_dev=[0.2, 0.3])
+    controller = MPPIController(
+        device="cpu",
+        max_control=[0.5, 1.0],
+        min_control=[0.0, -1.0],
+        critics=critics,
+        timesteps=10,
+        no_of_samples=3,
+        control_std_dev=[0.2, 0.3],
+    )
     current_state = torch.tensor([0.0, 0.0, 0.0]).reshape(-1, 1)
     control = torch.zeros((3, 2, 10))
 
@@ -88,7 +119,7 @@ def test_path_length_critic(critics):
     control[1, 1, :] = 0
 
     rolled_out_traj = controller.mppi_controller.rollout(current_state, control)
-    
+
     pathLengthCritic = PathLengthCritic()
     cost_vector = pathLengthCritic(rolled_out_traj, current_state, control)
 

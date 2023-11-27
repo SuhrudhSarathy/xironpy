@@ -9,6 +9,7 @@ import torch.nn as nn
 from time import time
 from xiron_py.controller import Controller
 
+
 class utils:
     @staticmethod
     def normalise_angle(tensor: torch.Tensor):
@@ -16,13 +17,13 @@ class utils:
         tensor = torch.where(tensor < -torch.pi, tensor + 2 * torch.pi, tensor)
 
         return tensor
-    
+
     @staticmethod
     def normalise_to_one(tensor: torch.Tensor):
         return (tensor - torch.min(tensor)) / (torch.max(tensor) - torch.min(tensor))
-    
+
     @staticmethod
-    def shortest_angle_distance(from_angle , to_angle):
+    def shortest_angle_distance(from_angle, to_angle):
         return utils.normalise_angle(to_angle - from_angle)
 
 
@@ -68,13 +69,13 @@ class MPPI(nn.Module):
         control_dims: int = 2,
         state_dims: int = 3,
         timesteps: int = 20,
-        dt: float = (1/30),
+        dt: float = (1 / 30),
         temperature: float = 0.3,
         no_of_samples: int = 2000,
         device: str = "cpu",
         max_control: list[float] = None,
         min_control: list[float] = None,
-        control_std_dev: list[float] = [0.5, 0.9]
+        control_std_dev: list[float] = [0.5, 0.9],
     ) -> None:
         super().__init__()
         self.control_dims = control_dims
@@ -203,7 +204,7 @@ class MPPI(nn.Module):
         )
         pertubed_control = control_tensor + noise_sample
         pertubed_control = self._limit_control(pertubed_control)
-        
+
         rolled_out_trajectories = self.rollout(current_state, pertubed_control)
         with open(f"/tmp/rolled_traj_{time()}.npy", "wb") as file:
             np.save(file, rolled_out_trajectories.detach().cpu().numpy())
@@ -226,6 +227,7 @@ class MPPI(nn.Module):
     ) -> torch.Tensor:
         return self.forward(current_state, current_control, goal_pose)
 
+
 #!--- Drive Models ---!#
 class DiffDriveModel(DynamicsModel):
     def __init__(self, dt: float = 0.1, device="cpu") -> None:
@@ -238,6 +240,7 @@ class DiffDriveModel(DynamicsModel):
         y = state[:, 1] + control[:, 0] * torch.sin(theta) * self.dt
 
         return torch.vstack([x, y, theta]).T
+
 
 class OmniDriveModel(DynamicsModel):
     def __init__(self, dt: float = 0.1, device="cpu") -> None:
@@ -264,8 +267,11 @@ NOTE:
 # 1. Work on critics properly
 # 2. Extend this to trajectory following.
 
+
 class PathLengthCritic(Critic):
-    def __init__(self, device: str = "cpu", weight: float = 1.0, power: int = 1) -> None:
+    def __init__(
+        self, device: str = "cpu", weight: float = 1.0, power: int = 1
+    ) -> None:
         super().__init__(device, weight, power)
 
         self.device = torch.device(device)
@@ -275,13 +281,17 @@ class PathLengthCritic(Critic):
 
         # loop 20
         for t in range(1, trajectory.shape[2]):
-            cost_vec += torch.linalg.norm(trajectory[:, :2, t] - trajectory[:, :2, t-1], dim=1).reshape(-1, 1)
+            cost_vec += torch.linalg.norm(
+                trajectory[:, :2, t] - trajectory[:, :2, t - 1], dim=1
+            ).reshape(-1, 1)
 
         return utils.normalise_to_one(cost_vec.reshape(-1, 1))
 
 
 class GoalReachingCritic(Critic):
-    def __init__(self, device: str = "cpu", weight: float = 1.0, power: int = 1) -> None:
+    def __init__(
+        self, device: str = "cpu", weight: float = 1.0, power: int = 1
+    ) -> None:
         super().__init__(device, weight, power)
 
     def forward(
@@ -304,10 +314,13 @@ class GoalReachingCritic(Critic):
         # Normalise to (0, 1) for proper global weightage
         return utils.normalise_to_one(cost_vec).reshape(-1, 1)
 
+
 # This does not seem to work vey well.
 # We need some critic that should be able to align the robot to path
 class AlignToPathCritic(Critic):
-    def __init__(self, device: str = "cpu", weight: float = 1.0, power: int = 1) -> None:
+    def __init__(
+        self, device: str = "cpu", weight: float = 1.0, power: int = 1
+    ) -> None:
         super().__init__(device, weight, power)
 
     def forward(
@@ -327,7 +340,9 @@ class AlignToPathCritic(Critic):
 
 
 class AngularVelocityCritic(Critic):
-    def __init__(self, device: str = "cpu", weight: float = 1.0, power: int = 1) -> None:
+    def __init__(
+        self, device: str = "cpu", weight: float = 1.0, power: int = 1
+    ) -> None:
         super().__init__(device, weight, power)
 
     def forward(
@@ -383,7 +398,7 @@ class MPPIController(Controller):
             device,
             max_control,
             min_control,
-            control_std_dev
+            control_std_dev,
         )
         # Do error handling here
         dynamics_model = MPPIController.DYNAMICS_MODEL_DICT[model](dt=dt, device="cpu")
@@ -414,24 +429,26 @@ class MPPIController(Controller):
         def first_after_integrated_distance(path, distance):
             # Get the last point that is atleast 1.5 m away
             cum_distance = 0.0
-            for i in range(0, path.shape[1]-2):
-                distance = np.linalg.norm(path[:, i+1] - path[:, i])
+            for i in range(0, path.shape[1] - 2):
+                distance = np.linalg.norm(path[:, i + 1] - path[:, i])
                 cum_distance = distance + cum_distance
                 if cum_distance > self.max_horizon_distance:
-                    return i+1
+                    return i + 1
             return -1
-        
+
         # first get the nearest pose in the path
         # TODO: Do we handle already travelled poses?
         nearest_pose_index = np.argmin(np.linalg.norm(self.plan - pose, axis=0))
         new_plan = self.plan[:, nearest_pose_index:]
-        index_after_horizon_dist = first_after_integrated_distance(new_plan, self.max_horizon_distance)
+        index_after_horizon_dist = first_after_integrated_distance(
+            new_plan, self.max_horizon_distance
+        )
 
         if index_after_horizon_dist == -1:
             return new_plan
         else:
-            return new_plan[:, :index_after_horizon_dist+1]
-        
+            return new_plan[:, : index_after_horizon_dist + 1]
+
     def compute_contol(
         self, current_state: np.ndarray, last_contol: np.ndarray
     ) -> np.ndarray:

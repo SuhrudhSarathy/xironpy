@@ -14,7 +14,7 @@ Notes
 """
 
 
-class ModelPredictiveController(Controller):
+class ModelPredictiveControllerOM(Controller):
     def __init__(
         self,
         model_type: str = "differential",
@@ -25,7 +25,6 @@ class ModelPredictiveController(Controller):
         max_horizon_distance: float = 1.2,
         reversing_allowed: bool = False,
         rotate_to_heading: bool = False,
-        move_ahead_by: int = 0
     ):
         super().__init__()
 
@@ -40,14 +39,12 @@ class ModelPredictiveController(Controller):
         self.max_horizon_distance = max_horizon_distance
         self.reversing_allowed = reversing_allowed
         self.rotate_to_heading = rotate_to_heading
-        self.move_ahead_by = move_ahead_by
 
         # Cost Matrices
-        self.Q = np.diag([15.0, 15.0])
-        self.P = np.diag([20.0, 20.0])
-        self.R = np.diag([1.0, 1.0])
-        self.A = 1.0
-        self.Tq = 0.0
+        self.Q = np.diag([10.0, 10.0])
+        self.P = np.diag([25.0, 25.0, 1.0])
+        self.R = np.diag([1.0, 2.0])
+        self.A = 0.001
 
         self.initialise_optimisation_problem()
 
@@ -55,22 +52,22 @@ class ModelPredictiveController(Controller):
         self.lookahead_plan = None
         self.lookahead_index = 0
 
-        self.should_rotate = True
-
         print("Initialised Model Prdictive Controller!")
 
-    def get_rotation_matrix(self, theta):
+    def Exp(theta):
         return np.array(
-            [[[cs.cos(theta), -cs.sin(theta)], [cs.sin(theta), cs.cos(theta)]]]
+            [[cs.cos(theta), -cs.sin(theta)], [cs.sin(theta), cs.cos(theta)]]
         )
+
+    def Log(A):
+        return np.arctan2(A[1, 0], A[0, 0])
 
     def initialise_optimisation_problem(self):
         # define the optimiser
         self.optimiser = cs.Opti()
 
-        # defint the variaargs: [ --fix ]
-        # Run the formatter.bles
-        self.X = self.optimiser.variable(3, self.timesteps + 1)
+        self.X = self.optimiser.variable(2, self.timesteps + 1)
+        self.R = self.optimiser.variable(2, 2, self.timesteps + 1)
         self.U = self.optimiser.variable(2, self.timesteps)
 
         # define the parameters that need not be optimised
@@ -87,14 +84,13 @@ class ModelPredictiveController(Controller):
 
         for i in range(self.timesteps):
             # Add Cost
-            dx = self.X_track[:2, i] - self.X[:2, i]
-            dtheta = self.__dtheta(self.X_track[2, i], self.X[2, i])
-            cost += dx.T @ self.Q @ dx + self.U[:, i].T @ self.R @ self.U[:, i] + self.Tq * dtheta
+            dx = self.X[:2, i] - self.X_track[:2, i]
+            cost += dx.T @ self.Q @ dx + self.U[:, i].T @ self.R @ self.U[:, i]
 
         dx = self.X[:2, -1] - self.X_track[:2, -1]
         alpha = alpha_func(self.X[:, 0], self.x0)
 
-        cost += dx.T @ self.P @ dx
+        cost += dx.T @ self.Q @ dx
         cost += self.A * alpha
 
         # Add constraints
@@ -124,7 +120,7 @@ class ModelPredictiveController(Controller):
         self.optimiser.minimize(cost)
 
         opts_setting = {
-            "ipopt.max_iter": 100,
+            "ipopt.max_iter": 200,
             "ipopt.print_level": 0,
             "print_time": 0,
             "ipopt.acceptable_tol": 1e-4,
@@ -138,46 +134,38 @@ class ModelPredictiveController(Controller):
         # U : [v, w].T
 
         theta_next = X[2][0] + U[1][0] * self.dt
-        x_next = X[0][0] + U[0][0] * cs.cos(theta_next) * self.dt
-        y_next = X[1][0] + U[0][0] * cs.sin(theta_next) * self.dt
+        x_next = X[0][0] + U[0][0] * cs.cos(theta_next)
+        y_next = X[1][0] + U[0][0] * cs.sin(theta_next)
 
         return cs.vertcat(x_next, y_next, theta_next)
-    
-    def __dtheta(self, t_real, t_track):
-        sin_t_real = cs.sin(t_real)
-        cos_t_real = cs.cos(t_real)
-        sin_t_track = cs.sin(t_track)
-        cos_t_track = cs.cos(t_track)
 
-        comp1 = sin_t_real * cos_t_track - sin_t_track * cos_t_real
-        comp2 = cos_t_track * cos_t_real + sin_t_real * sin_t_track
-
-        log = cs.atan2(comp1, comp2)
-
-        return log
+    def normalise_angle(self, theta):
+        if cs.Gt(theta, cs.pi):
+            return theta - 2 * cs.pi
+        elif cs.lt(theta, -cs.pi):
+            return theta + 2 * cs.pi
+        else:
+            return theta
 
     # rotate to heading
     def should_rotate_to_heading(self, current_pose):
         """This decides if we have to rotate in place first"""
         first_pose_in_plan = self.plan[0]
-        alpha_val = np.arctan2(
+        alpha_val = current_pose[2][0] - cs.atan(
             first_pose_in_plan[1]
             - current_pose[1][0]
-            , first_pose_in_plan[0] - current_pose[0][0]
-        ) - current_pose[2][0]
+            / (first_pose_in_plan[0] - current_pose[0][0] + 0.00001)
+        )
 
-        normalised_angle = cutils.normalise_angle(alpha_val)
-        print("Angular Error: ", normalised_angle)
-        if abs(normalised_angle) > 0.4:
+        if abs(alpha_val) > 0.4:
             # normalise alpha val
-            return True, np.sign(normalised_angle) * 0.2
+            return True, 0.5
 
         return False, 0.0
 
     # Controller interface functions
     def set_plan(self, plan: np.ndarray) -> None:
         self.plan = plan
-        self.should_rotate = True
 
     def compute_contol(
         self, current_state: np.ndarray, last_control: np.ndarray
@@ -186,10 +174,10 @@ class ModelPredictiveController(Controller):
         if self.plan is None:
             raise Exception("Set Plan first")
 
-        if self.rotate_to_heading and self.should_rotate:
-            self.should_rotate, angular_vel = self.should_rotate_to_heading(current_state)
-            if self.should_rotate:
-                return np.array([0.0, angular_vel]).reshape(-1, 1), None
+        if self.rotate_to_heading:
+            should_rotate, angular_vel = self.should_rotate_to_heading(current_state)
+            if should_rotate:
+                return np.array([0.0, angular_vel]).reshape(-1, 1)
 
         # # Reset lookahead index when you reach the end of path to continue on it again
         # if self.lookahead_index == -1:
@@ -200,7 +188,7 @@ class ModelPredictiveController(Controller):
         # )
 
         self.lookahead_plan = cutils.get_n_points_from_nearest_path(
-            self.plan, current_state, self.timesteps + 1, move_ahead_by=self.move_ahead_by
+            self.plan, current_state, self.timesteps + 1, move_ahead_by=5
         )
 
         # last_pose = self.lookahead_plan[:, -1].reshape(-1, 1)
@@ -211,8 +199,8 @@ class ModelPredictiveController(Controller):
         self.optimiser.set_value(self.X_track, self.lookahead_plan)
         self.optimiser.set_value(self.x0, current_state)
 
-        self.optimiser.set_initial(self.X, np.zeros_like(self.lookahead_plan))
-        self.optimiser.set_initial(self.U, np.zeros((2, self.timesteps)) * last_control)
+        self.optimiser.set_initial(self.X, self.lookahead_plan)
+        self.optimiser.set_initial(self.U, np.ones((2, self.timesteps)) * last_control)
 
         try:
             sol = self.optimiser.solve()
@@ -220,10 +208,10 @@ class ModelPredictiveController(Controller):
             x = sol.value(self.X)
             u = sol.value(self.U)
 
-            return u[:, 0].reshape(-1, 1), x
+            return u[:, 0].reshape(-1, 1)
 
         except Exception as e:
             print("Exception: ", e)
             print(self.optimiser.debug.value(self.U))
 
-            return None, None
+            return None

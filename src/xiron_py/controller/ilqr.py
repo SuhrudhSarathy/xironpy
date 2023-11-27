@@ -54,7 +54,7 @@ class ILQR(Controller):
         #     max_horizon_distance=self.max_horizon_distance,
         # )
         # lookahead_pose = lookahead_path[:, -1].reshape(-1, 1)
-        
+
         # Linearise the model near the current_state and last_control
         A, B = self.get_AB_matrices(self.goal_pose, last_contol)
         try:

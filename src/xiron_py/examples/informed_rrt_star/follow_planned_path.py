@@ -42,7 +42,7 @@ if __name__ == "__main__":
     # Create the Velocity publisher for robot0
     vel_pub = ctx.create_vel_publisher("robot0")
 
-    dt = (1/30)
+    dt = 1 / 30
 
     critics = [
         # "PathLengthCritic",
@@ -69,13 +69,20 @@ if __name__ == "__main__":
     env = EnvironmentManager("src/xiron_py/examples/informed_rrt_star/config.yaml")
 
     planner = InformedRRTStar(
-        env, IRRTStarConfig(
-            EXPAND_DIST=2.5, MAX_ITERS=5000, GOAL_DIST=0.5, BIAS_THRESHOLD=0.25, MAX_PLANNING_TIME=5
+        env,
+        IRRTStarConfig(
+            EXPAND_DIST=2.5,
+            MAX_ITERS=5000,
+            GOAL_DIST=0.5,
+            BIAS_THRESHOLD=0.25,
+            MAX_PLANNING_TIME=5,
         ),
     )
     start = np.array([-5.0, 2.5]).reshape(-1, 1)
     goal = np.array([4.0, 7.0]).reshape(-1, 1)
     path_found, path = planner.compute_plan(start, goal)
+    print([p[0][0] for p in path])
+    print([p[1][0] for p in path])
     if not path_found:
         fig, ax = plt.subplots()
         env.plot(ax)
@@ -96,7 +103,7 @@ if __name__ == "__main__":
         path_array = []
         for pose in path:
             path_array.append([pose[0][0], pose[1][0], 0])
-        
+
         path_array = np.array(path_array)
         controller.set_plan(path_array.T)
 
@@ -119,11 +126,13 @@ if __name__ == "__main__":
             X_real = [rp[0][0] for rp in robot_poses]
             Y_real = [rp[1][0] for rp in robot_poses]
 
-            ax.plot(X_real, Y_real, color="red", alpha=0.5, label="Actual Followed Path")
+            ax.plot(
+                X_real, Y_real, color="red", alpha=0.5, label="Actual Followed Path"
+            )
             ax.set_title("MPPI Controller with IRRT* Planner")
-            
+
             plt.legend()
-            plt.axis('equal')
+            plt.axis("equal")
             # plt.show()
 
             plt.savefig("media/controller_results/mppi_irrt_follow_path.png")
