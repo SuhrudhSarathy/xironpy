@@ -32,6 +32,11 @@ class XironContext:
             b"vel"  # The topic for the message (can be any bytes-like object)
         )
 
+        self.reset_pub = self._ctx.socket(zmq.PUB)
+        self.reset_pub.bind("tcp://127.0.0.1:5956")
+
+        self.reset_topic = b"reset"
+
         # Start the threads
         self._pose_callback_thread = Thread(
             target=self._main_pose_data_sub, daemon=True
@@ -88,6 +93,10 @@ class XironContext:
         # Send the message with the specified topic
         self.vel_pub.send_multipart([self.vel_topic, message])
 
+    def _send_reset(self):
+        message = "reset".encode("utf-8")
+        self.reset_pub.send_multipart([self.reset_topic, message])
+
     def create_vel_publisher(self, robot_id: str):
         return VelPublisher(robot_id=robot_id, ctx=self)
 
@@ -96,6 +105,10 @@ class XironContext:
 
     def create_scan_subscriber(self, robot_id: str, callback_fn):
         self.robot_name_scan_subscriber_map[robot_id] = callback_fn
+
+    def reset_simulation(self):
+        print("Resetting Simulation")
+        self._send_reset()
 
 
 class VelPublisher:
