@@ -46,9 +46,7 @@ if __name__ == "__main__":
 
     env = EnvironmentManager("src/xiron_py/examples/rrt/config.yaml")
 
-    planner = InformedRRTStar(
-        env, IRRTStarConfig(0.01, expand_dist=2.5, stay_away_dist=0.0)
-    )
+    planner = InformedRRTStar(env, IRRTStarConfig())
     start = np.array([-5.0, 2.5]).reshape(-1, 1)
     goal = np.array([4.0, 7.0]).reshape(-1, 1)
     path_found, path = planner.compute_plan(start, goal)

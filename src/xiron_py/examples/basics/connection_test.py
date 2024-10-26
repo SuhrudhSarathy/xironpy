@@ -5,11 +5,13 @@ from xiron_py.data import Twist
 
 
 def scan_callback(msg):
-    print(f"Recieved Scan message: {msg}")
+    # print(f"Recieved Scan message: {msg}")
+    pass
 
 
 def pose_callback(msg):
-    print(f"Recieved Pose message: {msg}")
+    # print(f"Recieved Pose message: {msg}")
+    pass
 
 
 if __name__ == "__main__":
@@ -26,7 +28,7 @@ if __name__ == "__main__":
     ctx.create_pose_subscriber("robot0", pose_callback)
 
     twist_message = Twist("robot0", [0.1, 0.0], 0.1)
-    for i in range(100):
+    for i in range(20):
         vel_pub.publish(twist_message)
         print("Publihsed vel: ", i)
         sleep(0.1)
@@ -35,3 +37,8 @@ if __name__ == "__main__":
     vel_pub.publish(twist_message)
 
     print("Done!")
+
+    reset_input = input("Reset simulation? [y/n]:")
+
+    if reset_input.lower() == "y":
+        ctx.reset_simulation()
