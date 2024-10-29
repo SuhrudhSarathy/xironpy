@@ -5,6 +5,9 @@ from threading import Thread
 import zmq
 
 from xiron_py.data import LaserScan, Pose, Twist
+from threading import Lock
+
+_mutex = Lock()
 
 
 class XironContext:
@@ -85,17 +88,19 @@ class XironContext:
                     callback_function(data)
 
     def _send_velocity(self, data: Twist):
-        vel_string = json.dumps(asdict(data))
-        message = vel_string.encode(
-            "utf-8"
-        )  # The message to send (can be any bytes-like object)
+        with _mutex:
+            vel_string = json.dumps(asdict(data))
+            message = vel_string.encode(
+                "utf-8"
+            )  # The message to send (can be any bytes-like object)
 
-        # Send the message with the specified topic
-        self.vel_pub.send_multipart([self.vel_topic, message])
+            # Send the message with the specified topic
+            self.vel_pub.send_multipart([self.vel_topic, message])
 
     def _send_reset(self):
-        message = "reset".encode("utf-8")
-        self.reset_pub.send_multipart([self.reset_topic, message])
+        with _mutex:
+            message = "RESET".encode("utf-8")
+            self.reset_pub.send_multipart([self.reset_topic, message])
 
     def create_vel_publisher(self, robot_id: str):
         return VelPublisher(robot_id=robot_id, ctx=self)
