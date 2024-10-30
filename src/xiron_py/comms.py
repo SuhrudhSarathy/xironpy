@@ -19,24 +19,31 @@ class XironContext:
 
         # Add the main Scan subscriber, Pose Subscriber and Vel publisher
         self.scan_sub = self._ctx.socket(zmq.SUB)
-        self.scan_sub.connect("tcp://127.0.0.1:5858")
+        self.scan_sub.set_hwm(10)
+        self.scan_sub.setsockopt(zmq.RCVTIMEO, 300)
+        self.scan_sub.connect("ipc:///tmp/scan")
         self.scan_sub.subscribe(b"scan")
 
         # Pose Sub
         self.pose_sub = self._ctx.socket(zmq.SUB)
-        self.pose_sub.connect("tcp://127.0.0.1:5555")
+        self.pose_sub.set_hwm(10)
+        self.pose_sub.setsockopt(zmq.RCVTIMEO, 300)
+        self.pose_sub.connect("ipc:///tmp/pose")
         self.pose_sub.subscribe(b"pose")
 
         # Vel pub
         self.vel_pub = self._ctx.socket(zmq.PUB)
-        self.vel_pub.bind("tcp://127.0.0.1:5556")
+        self.vel_pub.bind("ipc:///tmp/vel")
 
         self.vel_topic = (
             b"vel"  # The topic for the message (can be any bytes-like object)
         )
+        self.vel_pub.setsockopt(zmq.CONFLATE, 1)
+        self.vel_pub.setsockopt(zmq.IMMEDIATE, 1)
+        self.vel_pub.set_hwm(10)
 
         self.reset_pub = self._ctx.socket(zmq.PUB)
-        self.reset_pub.bind("tcp://127.0.0.1:5956")
+        self.reset_pub.bind("ipc:///tmp/reset")
 
         self.reset_topic = b"reset"
 
