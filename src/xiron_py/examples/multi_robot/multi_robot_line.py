@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 
-import numpy as np
-from threading import Thread
 import time
+from threading import Thread
+
+import numpy as np
 
 from xiron_py.comms import XironContext
-from xiron_py.data import Twist, LaserScan, Pose
 from xiron_py.controller.pid import PIDConfig, PIDController
+from xiron_py.data import LaserScan, Pose, Twist
 
 
 class RobotControl:

@@ -1,10 +1,11 @@
-import numpy as np
-from time import time
 import logging
+from time import time
 
-from xiron_py.planner.utils import Node, plot_path, plot_tree
+import numpy as np
+
 from xiron_py.env import EnvironmentManager
-from xiron_py.planner import Planner, XLIMS, YLIMS
+from xiron_py.planner import XLIMS, YLIMS, Planner
+from xiron_py.planner.utils import Node, plot_path, plot_tree
 
 LOGGING = False
 DEBUG = True

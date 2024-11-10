@@ -1,10 +1,9 @@
 import time
+from threading import Thread
 from time import sleep
 
 from xiron_py.comms import XironContext
 from xiron_py.data import Twist
-
-from threading import Thread
 
 
 def scan_callback(msg):

@@ -4,6 +4,7 @@ from typing import List
 
 @dataclass
 class Twist:
+    timestamp: float
     robot_id: str
     linear: tuple[float, float]
     angular: float
@@ -11,6 +12,7 @@ class Twist:
 
 @dataclass
 class Pose:
+    timestamp: float
     robot_id: str
     position: tuple[float, float]
     orientation: float
@@ -18,6 +20,7 @@ class Pose:
 
 @dataclass
 class LaserScan:
+    timestamp: float
     robot_id: str
     angle_min: float
     angle_max: float

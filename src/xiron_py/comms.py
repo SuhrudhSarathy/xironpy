@@ -1,132 +1,104 @@
+import asyncio
 import json
+import queue
 from dataclasses import asdict
 from threading import Thread
+from time import sleep, time
+from typing import Callable
 
-import zmq
+from websockets.asyncio.client import connect
 
 from xiron_py.data import LaserScan, Pose, Twist
-from threading import Lock
-
-_mutex = Lock()
 
 
 class XironContext:
     def __init__(self):
-        self._ctx = zmq.Context()
+        print("Initialised the main communicator")
+        self.data_to_send = queue.Queue()
 
-        self.robot_name_scan_subscriber_map = {}
-        self.robot_name_pose_subsriber_map = {}
+        # Callbacks
+        self._pose_callbacks: dict[str, Callable[[Pose], None]] = {}
+        self._scan_callbacks: dict[str, Callable[[Pose], None]] = {}
 
-        # Add the main Scan subscriber, Pose Subscriber and Vel publisher
-        self.scan_sub = self._ctx.socket(zmq.SUB)
-        self.scan_sub.set_hwm(10)
-        self.scan_sub.setsockopt(zmq.RCVTIMEO, 300)
-        self.scan_sub.connect("ipc:///tmp/scan")
-        self.scan_sub.subscribe(b"scan")
+        self._timer_threads_callbacks = []
 
-        # Pose Sub
-        self.pose_sub = self._ctx.socket(zmq.SUB)
-        self.pose_sub.set_hwm(10)
-        self.pose_sub.setsockopt(zmq.RCVTIMEO, 300)
-        self.pose_sub.connect("ipc:///tmp/pose")
-        self.pose_sub.subscribe(b"pose")
+    def run_in_separate_thread(self):
+        self.run_thread = Thread(target=self.run, daemon=True, name="async_run_thread")
+        self.run_thread.start()
 
-        # Vel pub
-        self.vel_pub = self._ctx.socket(zmq.PUB)
-        self.vel_pub.bind("ipc:///tmp/vel")
-
-        self.vel_topic = (
-            b"vel"  # The topic for the message (can be any bytes-like object)
+    async def main(self):
+        await asyncio.gather(
+            self.reciever_coroutine(),
+            self.sender_coroutine(),
+            *self._timer_threads_callbacks,
         )
-        self.vel_pub.setsockopt(zmq.CONFLATE, 1)
-        self.vel_pub.setsockopt(zmq.IMMEDIATE, 1)
-        self.vel_pub.set_hwm(10)
 
-        self.reset_pub = self._ctx.socket(zmq.PUB)
-        self.reset_pub.bind("ipc:///tmp/reset")
+    def run(self):
+        try:
+            asyncio.run(self.main())
+        except KeyboardInterrupt:
+            print("Quitting")
 
-        self.reset_topic = b"reset"
+    async def reciever_coroutine(self):
+        try:
+            async with connect("ws://localhost:9001") as websocket:
+                while True:
+                    message = await websocket.recv()
+                    jsonified_message = json.loads(message)
+                    if jsonified_message["type"] == "scan":
+                        msg = LaserScan(**jsonified_message["message"])
+                        await asyncio.to_thread(self._scan_callbacks[msg.robot_id], msg)
+                    elif jsonified_message["type"] == "pose":
+                        msg = Pose(**jsonified_message["message"])
+                        await asyncio.to_thread(self._pose_callbacks[msg.robot_id], msg)
+                    else:
+                        print("WARNING: unknown message type")
+        except Exception as e:
+            print(f"Exception in Reciever Coroutine: {e}")
 
-        # Start the threads
-        self._pose_callback_thread = Thread(
-            target=self._main_pose_data_sub, daemon=True
-        )
-        self._pose_callback_thread.start()
+    async def sender_coroutine(self):
+        try:
+            async with connect("ws://localhost:9000") as websocket:
+                while True:
+                    await asyncio.sleep((1 / 50.0))
+                    try:
+                        data = self.data_to_send.get(block=False)
+                        await websocket.send(data)
+                    except queue.Empty:
+                        pass
+        except Exception as e:
+            print(f"Exception in Sender Coroutine: {e}")
 
-        self._scan_callback_thread = Thread(
-            target=self._main_scan_data_sub, daemon=True
-        )
-        self._scan_callback_thread.start()
+    def create_pose_subscriber(
+        self, robot_id: str, pose_callback: Callable[[Pose], None]
+    ):
+        self._pose_callbacks[robot_id] = pose_callback
 
-    def _main_scan_data_sub(self):
-        while True:
-            output = self.scan_sub.recv_string(0)
-            if output != "scan":
-                json_obj = json.loads(output)
-                data = LaserScan(
-                    json_obj["robot_id"],
-                    json_obj["angle_min"],
-                    json_obj["angle_max"],
-                    json_obj["num_readings"],
-                    json_obj["values"],
-                )
+    def create_scan_subscriber(
+        self, robot_id: str, scan_callback: Callable[[LaserScan], None]
+    ):
+        self._scan_callbacks[robot_id] = scan_callback
 
-                callback_function = self.robot_name_scan_subscriber_map.get(
-                    data.robot_id
-                )
+    def create_timer(self, frequency: float, target_fn: Callable):
+        async def callback_fn():
+            while True:
+                await asyncio.to_thread(target_fn)
+                await asyncio.sleep(1 / frequency)
 
-                if callback_function is not None:
-                    callback_function(data)
-
-    def _main_pose_data_sub(self):
-        while True:
-            output = self.pose_sub.recv_string(0)
-            if output != "pose":
-                json_obj = json.loads(output)
-                data = Pose(
-                    json_obj["robot_id"], json_obj["position"], json_obj["orientation"]
-                )
-
-                callback_function = self.robot_name_pose_subsriber_map.get(
-                    data.robot_id
-                )
-
-                if callback_function is not None:
-                    callback_function(data)
-
-    def _send_velocity(self, data: Twist):
-        with _mutex:
-            vel_string = json.dumps(asdict(data))
-            message = vel_string.encode(
-                "utf-8"
-            )  # The message to send (can be any bytes-like object)
-
-            # Send the message with the specified topic
-            self.vel_pub.send_multipart([self.vel_topic, message])
-
-    def _send_reset(self):
-        with _mutex:
-            message = "RESET".encode("utf-8")
-            self.reset_pub.send_multipart([self.reset_topic, message])
-
-    def create_vel_publisher(self, robot_id: str):
-        return VelPublisher(robot_id=robot_id, ctx=self)
-
-    def create_pose_subscriber(self, robot_id: str, callback_fn):
-        self.robot_name_pose_subsriber_map[robot_id] = callback_fn
-
-    def create_scan_subscriber(self, robot_id: str, callback_fn):
-        self.robot_name_scan_subscriber_map[robot_id] = callback_fn
+        self._timer_threads_callbacks.append(callback_fn())
 
     def reset_simulation(self):
-        print("Resetting Simulation")
-        self._send_reset()
+        message = {"type": "reset", "message": ""}
 
+        self.data_to_send.put(json.dumps(message))
 
-class VelPublisher:
-    def __init__(self, robot_id: str, ctx: XironContext):
-        self._ctx = ctx
-        self.robot_id = robot_id
+    def publish_velocity(self, msg: Twist):
+        message = {
+            "type": "vel",
+            "message": asdict(msg),
+        }
 
-    def publish(self, message: Twist):
-        self._ctx._send_velocity(message)
+        self.data_to_send.put(json.dumps(message))
+
+    def now(self):
+        return time()

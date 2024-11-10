@@ -5,21 +5,25 @@ from xiron_py.data import Twist
 
 
 def scan_callback(msg):
-    # print(f"Recieved Scan message: {msg}")
-    pass
+    print(f"Recieved Scan message: {msg}")
 
 
 def pose_callback(msg):
-    # print(f"Recieved Pose message: {msg}")
-    pass
+    print(f"Recieved Pose message: {msg}")
+
+
+def vel_cb():
+    msg = Twist(ctx.now(), "robot0", [0.1, 0.0], 0.1)
+    ctx.publish_velocity(msg)
+
+
+def timer_cb():
+    print("Timer cb")
 
 
 if __name__ == "__main__":
     # Create a context object
     ctx = XironContext()
-
-    # Create the Velocity publisher for robot0
-    vel_pub = ctx.create_vel_publisher("robot0")
 
     # Create the Scan Subscriber and add callback function
     ctx.create_scan_subscriber("robot0", scan_callback)
@@ -27,18 +31,7 @@ if __name__ == "__main__":
     # Create the Pose Subscriber and add callback function
     ctx.create_pose_subscriber("robot0", pose_callback)
 
-    twist_message = Twist("robot0", [0.1, 0.0], 0.1)
-    for i in range(20):
-        vel_pub.publish(twist_message)
-        print("Publihsed vel: ", i)
-        sleep(0.1)
+    ctx.create_timer(10, vel_cb)
+    ctx.create_timer(10, timer_cb)
 
-    twist_message = Twist("robot0", [0.0, 0.0], 0.0)
-    vel_pub.publish(twist_message)
-
-    print("Done!")
-
-    reset_input = input("Reset simulation? [y/n]:")
-
-    if reset_input.lower() == "y":
-        ctx.reset_simulation()
+    ctx.run()
