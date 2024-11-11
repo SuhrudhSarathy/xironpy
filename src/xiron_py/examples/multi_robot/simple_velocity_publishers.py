@@ -13,21 +13,23 @@ def scan_callback(msg):
 def pose_callback(msg):
     print(f"Recieved Pose message: {msg}")
 
+def robot0_vel_cb():
+    twist_message0 = Twist(ctx.now(), "robot0", [0.5, 0.0], 0.0)
+    ctx.publish_velocity(twist_message0)
 
-def tcb(pub, msg):
-    while True:
-        pub.publish(msg)
-        sleep(0.1)
+def robot1_vel_cb():
+    twist_message1 = Twist(ctx.now(), "robot1", [0.5, 0.0], 0.0)
+    ctx.publish_velocity(twist_message1)
+
+def robot2_vel_cb():
+    twist_message2 = Twist(ctx.now(), "robot2", [0.5, 0.0], 0.0)
+    ctx.publish_velocity(twist_message2)
+
 
 
 if __name__ == "__main__":
     # Create a context object
     ctx = XironContext()
-
-    # Create the Velocity publisher for robot0
-    vel_pub_robot0 = ctx.create_vel_publisher("robot0")
-    vel_pub_robot1 = ctx.create_vel_publisher("robot1")
-    vel_pub_robot2 = ctx.create_vel_publisher("robot2")
 
     # Create the Scan Subscriber and add callback function
     ctx.create_scan_subscriber("robot0", scan_callback)
@@ -35,31 +37,13 @@ if __name__ == "__main__":
     # Create the Pose Subscriber and add callback function
     ctx.create_pose_subscriber("robot0", pose_callback)
 
-    twist_message0 = Twist("robot0", [0.5, 0.0], 0.0)
-    twist_message1 = Twist("robot1", [0.5, 0.0], 0.0)
-    twist_message2 = Twist("robot2", [0.5, 0.0], 0.0)
+    # Create velocity timers for multi robots
+    ctx.create_timer(10, robot0_vel_cb)
+    ctx.create_timer(10, robot1_vel_cb)
+    ctx.create_timer(10, robot2_vel_cb)
 
-    start = time.time()
+    # Keep the context alive
+    ctx.run()
+    
 
-    t1 = Thread(target=tcb, args=[vel_pub_robot0, twist_message0], daemon=True)
-    t2 = Thread(target=tcb, args=[vel_pub_robot1, twist_message1], daemon=True)
-    t3 = Thread(target=tcb, args=[vel_pub_robot2, twist_message2], daemon=True)
 
-    t1.start()
-    t2.start()
-    t3.start()
-
-    try:
-        t1.join()
-        t2.join()
-        t3.join()
-    except KeyboardInterrupt:
-        twist_message0 = Twist("robot0", [0.5, 0.0], 0.0)
-        twist_message1 = Twist("robot1", [0.5, 0.0], 0.0)
-        twist_message2 = Twist("robot2", [0.5, 0.0], 0.0)
-
-        vel_pub_robot0.publish(twist_message0)
-        vel_pub_robot1.publish(twist_message1)
-        vel_pub_robot2.publish(twist_message2)
-
-        print("Closing Fine")

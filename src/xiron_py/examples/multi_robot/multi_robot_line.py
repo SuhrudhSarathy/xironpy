@@ -19,9 +19,8 @@ class RobotControl:
         self.current_pose = None
         self.nearest_range = None
 
-        self.vel_pub = self.ctx.create_vel_publisher(self.robot_id)
-        self.odom_sub = self.ctx.create_pose_subscriber(self.robot_id, self.odom_cb)
-        self.scan_sub = self.ctx.create_scan_subscriber(self.robot_id, self.scan_cb)
+        self.ctx.create_pose_subscriber(self.robot_id, self.odom_cb)
+        self.ctx.create_scan_subscriber(self.robot_id, self.scan_cb)
 
         # Initialise the controller
         self.path_to_follow = [
@@ -40,12 +39,10 @@ class RobotControl:
         self.controller = PIDController(control_config)
         self.controller.set_plan(self.path_to_follow)
 
-        # Timer for velocity control
-        self.vel_pub_thread = Thread(target=self.vel_timer)
+        # Timer for sending velocity
+        self.ctx.create_timer(10, self.vel_timer_cb)
 
         print(f"Intialised controller for {self.robot_id}")
-
-        self.vel_pub_thread.start()
 
     def odom_cb(self, msg: Pose):
         self.current_pose = np.array(
@@ -57,42 +54,38 @@ class RobotControl:
         self.nearest_range = min(msg.values[mid_value - 25 : mid_value + 25])
 
     def send_vel(self, v: float, w: float):
-        twist = Twist(self.robot_id, [v, 0.0], w)
+        twist = Twist(self.ctx.now(), self.robot_id, [v, 0.0], w)
+        self.ctx.publish_velocity(twist)
 
-        self.vel_pub.publish(twist)
-
-    def vel_timer(self):
-        while True:
+    def vel_timer_cb(self):
             # Do nothing, if we dont have the current pose
             if self.current_pose is None or self.nearest_range is None:
                 print(f"{self.robot_id}: Did not get scan or pose")
-                continue
+                return
 
             # If the nearest range is less than a safety distance, stop moving
-            if self.nearest_range < 0.8:
+            if self.nearest_range < 1.2:
                 self.send_vel(0.0, 0.0)
                 print(f"{self.robot_id}: Not safe to move. Stopping")
-                continue
+                return
 
             if np.linalg.norm(self.current_pose - self.last_pose) < 0.05:
                 print(f"{self.robot_id}: Reached Final destination")
 
-                continue
+                return
 
             # Compute the velocity command to send using the PID controller
             vel = self.controller.compute_contol(self.current_pose, self.last_control)
             self.last_control = vel
-            print(f"{self.robot_id}: Last control: {self.last_control}")
+            # print(f"{self.robot_id}: Last control: {self.last_control}")
 
             self.send_vel(self.last_control[0][0], self.last_control[1][0])
 
-            time.sleep(0.05)
-
 
 class MultiRobotControlNode:
-    def __init__(self):
-        self.ctx = XironContext()
-        self.max_robots = 3
+    def __init__(self, ctx: XironContext):
+        self.ctx = ctx
+        self.max_robots = 5
         self.robot_control_nodes = []
         for i in range(self.max_robots):
             self.robot_control_nodes.append(RobotControl(f"robot{i}", self.ctx))
@@ -101,6 +94,13 @@ class MultiRobotControlNode:
 
 
 if __name__ == "__main__":
-    node = MultiRobotControlNode()
-    while True:
-        time.sleep(0.1)
+    # Initialize Xiron Context object
+    ctx = XironContext()
+    
+    # Create a Multi robot control node
+    node = MultiRobotControlNode(ctx)
+
+    # Keep the context alive
+    ctx.run()
+
+    

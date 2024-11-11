@@ -1,10 +1,12 @@
 # This is experimental and subject to change
 
-# TODO : Add Path Tracking Support by using some sort of look aheads
-
 import numpy as np
-import torch
-import torch.nn as nn
+try:
+    import torch
+    import torch.nn as nn
+except ImportError:
+    print("Torch is not installed. Install xironpy with experimental features.")
+    raise ImportError
 
 from xiron_py.controller import Controller
 
