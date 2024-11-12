@@ -13,18 +13,20 @@ def scan_callback(msg):
 def pose_callback(msg):
     print(f"Recieved Pose message: {msg}")
 
+
 def robot0_vel_cb():
     twist_message0 = Twist(ctx.now(), "robot0", [0.5, 0.0], 0.0)
     ctx.publish_velocity(twist_message0)
+
 
 def robot1_vel_cb():
     twist_message1 = Twist(ctx.now(), "robot1", [0.5, 0.0], 0.0)
     ctx.publish_velocity(twist_message1)
 
+
 def robot2_vel_cb():
     twist_message2 = Twist(ctx.now(), "robot2", [0.5, 0.0], 0.0)
     ctx.publish_velocity(twist_message2)
-
 
 
 if __name__ == "__main__":
@@ -44,6 +46,3 @@ if __name__ == "__main__":
 
     # Keep the context alive
     ctx.run()
-    
-
-
