@@ -5,13 +5,13 @@ from xiron_py.data import Twist
 
 
 def scan_callback(msg):
-    # print(f"Recieved Scan message: {msg}")
-    pass
+    print(f"Recieved Scan message: {msg}")
+    # pass
 
 
 def pose_callback(msg):
-    # print(f"Recieved Pose message: {msg}")
-    pass
+    print(f"Recieved Pose message: {msg}")
+    # pass
 
 
 def vel_cb():
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     ctx.create_pose_subscriber("robot0", pose_callback)
 
     # Create a timer to publish velocity.
-    # ctx.create_timer(10, vel_cb)
+    ctx.create_timer(10, vel_cb)
 
     # Keep the context alive
     ctx.run()

@@ -52,7 +52,6 @@ class XironContext:
             robot_id=decoded_msg.robot_id,
             angle_min=decoded_msg.angle_min,
             angle_max=decoded_msg.angle_max,
-            angle_step=decoded_msg.angle_step,
             num_readings=decoded_msg.num_readings,
             values=decoded_msg.values,
         )
@@ -60,7 +59,7 @@ class XironContext:
 
     async def _send_pose_message(self, msg):
         decoded_msg = PoseMsg()
-        decoded_msg.ParseFromString(msg.value)
+        decoded_msg.ParseFromString(msg)
 
         msg = Pose(
             timestamp=decoded_msg.timestamp,
@@ -70,7 +69,6 @@ class XironContext:
         )
         await asyncio.to_thread(self._pose_callbacks[msg.robot_id], msg)
 
-
     async def reciever_coroutine(self):
         try:
             async with connect("ws://localhost:9001", ping_interval=None) as websocket:
@@ -78,15 +76,17 @@ class XironContext:
                     message = await websocket.recv()
                     wrapped_msg = Any()
                     wrapped_msg.ParseFromString(message)
-                    
-                    print(wrapped_msg)
 
                     if wrapped_msg.type_url == "scan":
-                        await self._send_scan_message(wrapped_msg.value)
-                        
+                        await asyncio.wait_for(
+                            self._send_scan_message(wrapped_msg.value), 0.5
+                        )
+
                     elif wrapped_msg.type_url == "pose":
-                        await self._send_pose_message(wrapped_msg.value)
-                        
+                        await asyncio.wait_for(
+                            self._send_pose_message(wrapped_msg.value), 0.5
+                        )
+
                     else:
                         print("WARNING: unknown message type")
         except Exception as e:
@@ -129,9 +129,9 @@ class XironContext:
 
         wrapped_msg = Any()
         wrapped_msg.type_url = "reset"
-        wrapped_msg.value = message.SerialiseToString()
+        wrapped_msg.value = message.SerializeToString()
 
-        self.data_to_send.put(wrapped_msg.SerialiseToString())
+        self.data_to_send.put(wrapped_msg.SerializeToString())
 
     def publish_velocity(self, msg: Twist):
         message = TwistMsg()
@@ -142,10 +142,10 @@ class XironContext:
         message.angular = msg.angular
 
         wrapped_msg = Any()
-        wrapped_msg.type_url = "reset"
-        wrapped_msg.value = message.SerialiseToString()
+        wrapped_msg.type_url = "vel"
+        wrapped_msg.value = message.SerializeToString()
 
-        self.data_to_send.put(wrapped_msg.SerialiseToString())
+        self.data_to_send.put(wrapped_msg.SerializeToString())
 
     def now(self):
         return time()
