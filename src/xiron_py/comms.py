@@ -20,7 +20,9 @@ from xiron_py.protos.twist_pb2 import TwistMsg
 
 
 class XironContext:
-    def __init__(self, url: str = "localhost", s2c_port: int = 9000, c2s_port: int  = 9001):
+    def __init__(
+        self, url: str = "localhost", s2c_port: int = 9000, c2s_port: int = 9001
+    ):
         print("Initialised the main communicator")
 
         self.s2c_url = f"ws://{url}:{s2c_port}"
@@ -58,7 +60,6 @@ class XironContext:
                 task.cancel()
             await asyncio.sleep(0.1)  # Allow time for cancellation
 
-
     def run(self):
         self.stop_event.clear()
         loop = asyncio.new_event_loop()
@@ -81,7 +82,6 @@ class XironContext:
             loop.close()
             print("Event loop closed cleanly")
 
-
     async def _send_scan_message(self, msg):
         decoded_msg = LaserScanMsg()
         decoded_msg.ParseFromString(msg)
@@ -93,7 +93,7 @@ class XironContext:
             num_readings=decoded_msg.num_readings,
             values=decoded_msg.values,
         )
-        scan_cb =  self._scan_callbacks.get(msg.robot_id)
+        scan_cb = self._scan_callbacks.get(msg.robot_id)
         if scan_cb is not None:
             await asyncio.to_thread(self._scan_callbacks[msg.robot_id], msg)
 
@@ -112,7 +112,7 @@ class XironContext:
             await asyncio.to_thread(self._pose_callbacks[msg.robot_id], msg)
 
     async def ws_s2c_client(self):
-        """ WebSocket client for receiving messages from server to client. """
+        """WebSocket client for receiving messages from server to client."""
         try:
             async with connect(self.s2c_url) as websocket:
                 print("Connected to S2C WebSocket")
@@ -129,7 +129,7 @@ class XironContext:
                             await self._send_pose_message(wrapped_msg.value)
                         else:
                             print("WARNING: unknown message type")
-                    
+
                     except asyncio.TimeoutError:
                         continue  # Just retry after timeout
                     except ConnectionClosed as e:
@@ -142,18 +142,22 @@ class XironContext:
             print(f"Exception in S2C WebSocket client: {e}")
 
     async def ws_c2s_client(self):
-        """ WebSocket client for sending messages from client to server. """
+        """WebSocket client for sending messages from client to server."""
         try:
             async with connect(self.c2s_url) as websocket:
                 print("Connected to C2S WebSocket")
 
                 while not self.stop_event.is_set():
                     try:
-                        data = self.data_to_send.get(block=True, timeout=0.005)  # Block for 5ms
+                        data = self.data_to_send.get(
+                            block=True, timeout=0.005
+                        )  # Block for 5ms
                         await websocket.send(data)
-                    
+
                     except queue.Empty:
-                        await asyncio.sleep(0.0001)  # Sleep for 100µs to avoid busy-waiting
+                        await asyncio.sleep(
+                            0.0001
+                        )  # Sleep for 100µs to avoid busy-waiting
                     except ConnectionClosed as e:
                         print(f"Connection closed: {e}")
                         break
@@ -162,7 +166,6 @@ class XironContext:
 
         except Exception as e:
             print(f"Exception in C2S WebSocket client: {e}")
-
 
     def create_pose_subscriber(
         self, robot_id: str, pose_callback: Callable[[Pose], None]
