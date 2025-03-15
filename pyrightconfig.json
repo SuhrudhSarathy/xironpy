@@ -1,0 +1,28 @@
+{
+  "include": ["src"],
+  "exclude": ["**/__pycache__", "build", "dist"],
+  "ignore": ["tests/helpers"],
+  "typeCheckingMode": "basic",
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false,
+  "reportGeneralTypeIssues": "warning",
+  "reportOptionalSubscript": "none",
+  "reportOptionalMemberAccess": "none",
+  "reportOptionalCall": "none",
+  "reportOptionalIterable": "none",
+  "reportOptionalContextManager": "none",
+  "reportOptionalOperand": "none",
+  "reportUnknownMemberType": false,
+  "reportUnknownVariableType": false,
+  "reportUnknownArgumentType": false,
+  "reportUnknownParameterType": false,
+  "pythonVersion": "3.12",
+  "pythonPlatform": "Mac",
+  "venvPath": "/opt/homebrew/Caskroom/miniforge/base/envs",
+  "venv": "pr",
+  // "executionEnvironments": [
+  //   {
+  //     "python": ,
+  //   }
+  // ]
+}

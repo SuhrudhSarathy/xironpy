@@ -23,9 +23,10 @@ pip install -e .
 A simple script can be found in [examples](./src/xiron_py/examples/connection_test.py)
 
 ```python
+from time import sleep
+
 from xiron_py.comms import XironContext
 from xiron_py.data import Twist
-from time import sleep
 
 
 def scan_callback(msg):
@@ -36,12 +37,14 @@ def pose_callback(msg):
     print(f"Recieved Pose message: {msg}")
 
 
+def vel_cb():
+    msg = Twist(ctx.now(), "robot0", [0.5, 0.0], 0.1)
+    ctx.publish_velocity(msg)
+
+
 if __name__ == "__main__":
     # Create a context object
     ctx = XironContext()
-
-    # Create the Velocity publisher for robot0
-    vel_pub = ctx.create_vel_publisher("robot0")
 
     # Create the Scan Subscriber and add callback function
     ctx.create_scan_subscriber("robot0", scan_callback)
@@ -49,16 +52,11 @@ if __name__ == "__main__":
     # Create the Pose Subscriber and add callback function
     ctx.create_pose_subscriber("robot0", pose_callback)
 
-    twist_message = Twist("robot0", [0.1, 0.0], 0.1)
-    for i in range(100):
-        vel_pub.publish(twist_message)
-        print("Publihsed vel: ", i)
-        sleep(0.1)
+    # Create a timer to publish velocity.
+    ctx.create_timer(10, vel_cb)
 
-    twist_message = Twist("robot0", [0.0, 0.0], 0.0)
-    vel_pub.publish(twist_message)
-
-    print("Done!")
+    # Keep the context alive
+    ctx.run()
 
 ```
 
