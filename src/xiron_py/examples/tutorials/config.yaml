@@ -1,0 +1,115 @@
+robots:
+- id: robot0
+  pose:
+  - -5.957324
+  - 1.969531
+  - 0.0
+  vel:
+  - 0.0
+  - 0.0
+  - 0.0
+  lidar: true
+  footprint:
+  - 0.25
+  drive_type: Differential
+  add_noise: false
+- id: robot1
+  pose:
+  - -3.075488
+  - 2.0071287
+  - 0.0
+  vel:
+  - 0.0
+  - 0.0
+  - 0.0
+  lidar: true
+  footprint:
+  - 0.25
+  drive_type: Omnidrive
+  add_noise: false
+- id: robot2
+  pose:
+  - -5.9308596
+  - 4.040429
+  - 0.0
+  vel:
+  - 0.0
+  - 0.0
+  - 0.0
+  lidar: true
+  footprint:
+  - 1.0
+  - 0.6
+  drive_type: Ackermann
+  add_noise: false
+- id: robot3
+  pose:
+  - -2.9238281
+  - 4.010742
+  - 0.0
+  vel:
+  - 0.0
+  - 0.0
+  - 0.0
+  lidar: true
+  footprint:
+  - 1.0
+  - 0.6
+  drive_type: Forklift
+  add_noise: false
+walls:
+- endpoints:
+  - - -9.985937
+    - 7.997168
+  - - 5.032423
+    - 7.9750977
+  - - 4.9673824
+    - -4.0413094
+  - - -10.067774
+    - -4.028223
+  - - -10.032618
+    - 8.068359
+- endpoints:
+  - - -9.907618
+    - 0.039648056
+  - - -2.0368166
+    - -0.05000019
+  - - -2.0917969
+    - -1.9064465
+- endpoints:
+  - - -7.0554686
+    - 0.15097618
+  - - -7.0227537
+    - 3.9761715
+- endpoints:
+  - - 4.8778324
+    - 5.0532227
+  - - 0.8470707
+    - 5.0756836
+  - - 0.82998085
+    - 0.3486328
+static_objects:
+- center:
+  - -5.0124025
+  - 6.966504
+  width: 0.625
+  height: 0.625
+  rotation: 0.0
+- center:
+  - -8.886523
+  - 6.5675783
+  width: 0.625
+  height: 0.625
+  rotation: 0.0
+- center:
+  - 0.64384747
+  - 6.4944334
+  width: 0.625
+  height: 0.625
+  rotation: 0.0
+- center:
+  - -0.7624998
+  - 3.1134768
+  width: 0.625
+  height: 0.625
+  rotation: 0.0

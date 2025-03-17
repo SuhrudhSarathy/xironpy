@@ -2,9 +2,9 @@ import asyncio
 import json
 import queue
 from dataclasses import asdict
-from threading import Thread
+from threading import Thread, current_thread, main_thread
 from time import sleep, time
-from typing import Callable
+from typing import Callable, Dict
 
 import signal
 
@@ -21,7 +21,7 @@ from xiron_py.protos.twist_pb2 import TwistMsg
 
 class XironContext:
     def __init__(
-        self, url: str = "localhost", s2c_port: int = 9000, c2s_port: int = 9001
+        self, url: str = "localhost", s2c_port: int = 9000, c2s_port: int = 9001,
     ):
         print("Initialised the main communicator")
 
@@ -36,7 +36,7 @@ class XironContext:
 
         self._timer_threads_callbacks = []
 
-        self._last_recieved_values = {"pose": None, "scan": None}
+        self._last_recieved_values : Dict[str, Dict[str, Pose|LaserScan|None]] = {"pose": {}, "scan": {}}
         self.stop_event = asyncio.Event()
 
     def run_in_separate_thread(self):
@@ -69,8 +69,12 @@ class XironContext:
             print("Stopping event loop...")
             self.stop_event.set()  # Signal shutdown to coroutines
 
-        loop.add_signal_handler(signal.SIGINT, stop_loop)
-        loop.add_signal_handler(signal.SIGTERM, stop_loop)
+        if current_thread() is main_thread():
+            print("Adding Signal Handler to stop loop")
+            loop.add_signal_handler(signal.SIGINT, stop_loop)
+            loop.add_signal_handler(signal.SIGTERM, stop_loop)
+        else:
+            print("Signal handler is not added. Make sure to call `stop` function to stop the websockets properly")
 
         try:
             loop.run_until_complete(self.main())  # Pass stop event
@@ -81,6 +85,10 @@ class XironContext:
             loop.run_until_complete(asyncio.sleep(0.1))  # Allow cleanup time
             loop.close()
             print("Event loop closed cleanly")
+
+    def stop(self):
+        """Sets the stop event to stop the main runner threads"""
+        self.stop_event.set()
 
     async def _send_scan_message(self, msg):
         decoded_msg = LaserScanMsg()
@@ -93,6 +101,9 @@ class XironContext:
             num_readings=decoded_msg.num_readings,
             values=decoded_msg.values,
         )
+        # Save the value to retrieve it via the get API
+        self._last_recieved_values["scan"][decoded_msg.robot_id] = msg
+
         scan_cb = self._scan_callbacks.get(msg.robot_id)
         if scan_cb is not None:
             await asyncio.to_thread(self._scan_callbacks[msg.robot_id], msg)
@@ -107,6 +118,10 @@ class XironContext:
             position=[decoded_msg.position.x, decoded_msg.position.y],
             orientation=decoded_msg.orientation,
         )
+
+        # Save the value to retrieve it via the get API
+        self._last_recieved_values["pose"][decoded_msg.robot_id] = msg
+
         pose_cb = self._pose_callbacks.get(msg.robot_id)
         if pose_cb is not None:
             await asyncio.to_thread(self._pose_callbacks[msg.robot_id], msg)
@@ -114,7 +129,7 @@ class XironContext:
     async def ws_s2c_client(self):
         """WebSocket client for receiving messages from server to client."""
         try:
-            async with connect(self.s2c_url) as websocket:
+            async with connect(self.s2c_url, ping_interval=None) as websocket:
                 print("Connected to S2C WebSocket")
 
                 while not self.stop_event.is_set():
@@ -144,14 +159,12 @@ class XironContext:
     async def ws_c2s_client(self):
         """WebSocket client for sending messages from client to server."""
         try:
-            async with connect(self.c2s_url) as websocket:
+            async with connect(self.c2s_url, ping_interval=None, close_timeout=None) as websocket:
                 print("Connected to C2S WebSocket")
 
                 while not self.stop_event.is_set():
                     try:
-                        data = self.data_to_send.get(
-                            block=True, timeout=0.005
-                        )  # Block for 5ms
+                        data = self.data_to_send.get(block=False)
                         await websocket.send(data)
 
                     except queue.Empty:
@@ -170,14 +183,17 @@ class XironContext:
     def create_pose_subscriber(
         self, robot_id: str, pose_callback: Callable[[Pose], None]
     ):
+        """Creates a Pose Subscriber"""
         self._pose_callbacks[robot_id] = pose_callback
 
     def create_scan_subscriber(
         self, robot_id: str, scan_callback: Callable[[LaserScan], None]
     ):
+        """Creates a Scan Subscriber"""
         self._scan_callbacks[robot_id] = scan_callback
 
     def create_timer(self, frequency: float, target_fn: Callable):
+        """Create a timer. The target_fn in this timer should be non-blocking"""
         async def callback_fn():
             while not self.stop_event.is_set():
                 await asyncio.to_thread(target_fn)
@@ -187,6 +203,7 @@ class XironContext:
         self._timer_threads_callbacks.append(callback_fn())
 
     def reset_simulation(self):
+        """Resets the simulation"""
         message = ResetMsg()
         message.timestamp = self.now()
 
@@ -197,6 +214,7 @@ class XironContext:
         self.data_to_send.put(wrapped_msg.SerializeToString())
 
     def publish_velocity(self, msg: Twist):
+        """Publish Velocity message"""
         message = TwistMsg()
         message.timestamp = msg.timestamp
         message.robot_id = msg.robot_id
@@ -211,4 +229,13 @@ class XironContext:
         self.data_to_send.put(wrapped_msg.SerializeToString())
 
     def now(self):
+        """Return current time using the `time` function"""
         return time()
+
+    def get_pose(self, robot_id: str) -> Pose | None:
+        """Gets last received pose of robot_id"""
+        return self._last_recieved_values["pose"].get(robot_id)
+
+    def get_scan(self, robot_id: str) -> LaserScan | None:
+        """Gets last received scan of robot_id"""
+        return self._last_recieved_values["scan"].get(robot_id)
