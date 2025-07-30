@@ -1,0 +1,45 @@
+robots:
+- id: robot0
+  pose:
+  - -1.882226
+  - 0.83720684
+  - 0.0
+  vel:
+  - 0.0
+  - 0.0
+  - 0.0
+  lidar: true
+  footprint:
+  - 0.25
+  drive_type: Differential
+  add_noise: false
+walls:
+- endpoints:
+  - - -8.311035
+    - 1.9822283
+  - - -4.131055
+    - 10.430372
+  - - -0.7428713
+    - 9.343164
+static_objects:
+- center:
+  - -3.1044922
+  - 7.397559
+  width: 0.625
+  height: 0.625
+  rotation: 0.0
+0.544726
+    - 1.9253902
+static_objects:
+- center:
+  - -0.97939396
+  - 5.514551
+  width: 0.625
+  height: 0.625
+  rotation: 0.0
+- center:
+  - 3.2607422
+  - 6.3668947
+  width: 0.625
+  height: 0.625
+  rotation: 0.0

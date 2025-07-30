@@ -1,0 +1,32 @@
+robots:
+- id: robot0
+  pose:
+  - -4.658203
+  - 6.5581064
+  - 0.0
+  vel:
+  - 0.0
+  - 0.0
+  - 0.0
+  lidar: true
+  footprint:
+  - 0.25
+  drive_type: Omnidrive
+  add_noise: false
+walls:
+- endpoints:
+  - - -8.688183
+    - 9.204298
+  - - -4.8549805
+    - 11.947364
+  - - -1.3120117
+    - 9.863087
+  - - -0.86308575
+    - 7.824903
+static_objects:
+- center:
+  - -5.965332
+  - 4.439747
+  width: 0.625
+  height: 0.625
+  rotation: 0.0

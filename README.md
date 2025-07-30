@@ -62,3 +62,11 @@ if __name__ == "__main__":
 
 # Documentation
 Documentation can be found [here](https://suhrudhsarathy.github.io/xiron/user_guide/python_interface/)
+
+
+This is an inline equation: \( E = mc^2 \).
+
+$$ 
+f(x) = ax^2 + bx + c 
+g(\theta) = \theta - 2 * sin(\alpha)
+$$

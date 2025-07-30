@@ -1,3 +1,4 @@
+from typing import override
 import numpy as np
 
 from xiron_py.controller import Controller
@@ -96,12 +97,14 @@ class PIDController(Controller):
 
             return velocity
 
-    def set_plan(self, plan: np.ndarray | list) -> None:
+    @override
+    def set_target_plan(self, plan: np.ndarray | list) -> None:
         self.plan = plan
         self.current_goal_index = 0
         self.reset_variables()
 
-    def compute_contol(
+    @override
+    def get_control_input(
         self, current_state: np.ndarray | list, last_contol: np.ndarray | list
     ) -> np.ndarray:
         # Angle to pose
