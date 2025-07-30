@@ -21,7 +21,10 @@ from xiron_py.protos.twist_pb2 import TwistMsg
 
 class XironContext:
     def __init__(
-        self, url: str = "localhost", s2c_port: int = 9000, c2s_port: int = 9001,
+        self,
+        url: str = "localhost",
+        s2c_port: int = 9000,
+        c2s_port: int = 9001,
     ):
         print("Initialised the main communicator")
 
@@ -36,7 +39,10 @@ class XironContext:
 
         self._timer_threads_callbacks = []
 
-        self._last_recieved_values : Dict[str, Dict[str, Pose|LaserScan|None]] = {"pose": {}, "scan": {}}
+        self._last_recieved_values: Dict[str, Dict[str, Pose | LaserScan | None]] = {
+            "pose": {},
+            "scan": {},
+        }
         self.stop_event = asyncio.Event()
 
     def run_in_separate_thread(self):
@@ -74,7 +80,9 @@ class XironContext:
             loop.add_signal_handler(signal.SIGINT, stop_loop)
             loop.add_signal_handler(signal.SIGTERM, stop_loop)
         else:
-            print("Signal handler is not added. Make sure to call `stop` function to stop the websockets properly")
+            print(
+                "Signal handler is not added. Make sure to call `stop` function to stop the websockets properly"
+            )
 
         try:
             loop.run_until_complete(self.main())  # Pass stop event
@@ -159,7 +167,9 @@ class XironContext:
     async def ws_c2s_client(self):
         """WebSocket client for sending messages from client to server."""
         try:
-            async with connect(self.c2s_url, ping_interval=None, close_timeout=None) as websocket:
+            async with connect(
+                self.c2s_url, ping_interval=None, close_timeout=None
+            ) as websocket:
                 print("Connected to C2S WebSocket")
 
                 while not self.stop_event.is_set():
@@ -194,6 +204,7 @@ class XironContext:
 
     def create_timer(self, frequency: float, target_fn: Callable):
         """Create a timer. The target_fn in this timer should be non-blocking"""
+
         async def callback_fn():
             while not self.stop_event.is_set():
                 await asyncio.to_thread(target_fn)

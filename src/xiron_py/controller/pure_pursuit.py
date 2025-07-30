@@ -2,16 +2,18 @@ from typing import override
 import numpy as np
 from xiron_py.controller import Controller
 
+
 class PurePursuitConfig:
     def __init__(
         self,
         lookahead_distance: float = 0.5,
         max_linear_vel: float = 0.5,
-        wheelbase: float = 0.3  # Distance between front and rear axle
+        wheelbase: float = 0.3,  # Distance between front and rear axle
     ):
         self.lookahead_distance = lookahead_distance
         self.max_linear_vel = max_linear_vel
         self.wheelbase = wheelbase
+
 
 class PurePursuitController(Controller):
     def __init__(self, config: PurePursuitConfig = PurePursuitConfig()):
@@ -20,15 +22,20 @@ class PurePursuitController(Controller):
         self.plan = None
         self.path = None
 
-
     def transform_path(self, current_pose: np.ndarray):
-        x, y, theta = list(current_pose.reshape(-1,))
+        x, y, theta = list(
+            current_pose.reshape(
+                -1,
+            )
+        )
 
-        tf_matrix = np.array([
-            [np.cos(theta), -np.sin(theta), x],
-            [np.sin(theta), np.cos(theta), y],
-            [0, 0, 1]
-        ])
+        tf_matrix = np.array(
+            [
+                [np.cos(theta), -np.sin(theta), x],
+                [np.sin(theta), np.cos(theta), y],
+                [0, 0, 1],
+            ]
+        )
         tfed_plan = np.linalg.inv(tf_matrix) @ self.plan
 
         return tfed_plan
@@ -44,10 +51,10 @@ class PurePursuitController(Controller):
         self.plan = np.vstack([self.plan, ones])
 
     @override
-    def get_control_input(self, current_state: np.ndarray | list, last_control: np.ndarray | list) -> np.ndarray:
+    def get_control_input(
+        self, current_state: np.ndarray | list, last_control: np.ndarray | list
+    ) -> np.ndarray:
         plan_in_robot_frame = self.transform_path(current_state)
         nearest_pt_in_path = self.get_nearest_point_idx(plan_in_robot_frame)
 
-        # Check if the 
-
-
+        # Check if the
